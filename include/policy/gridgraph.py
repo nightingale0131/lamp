@@ -260,6 +260,7 @@ class GridGraph(object):
 
             pos.update({n: start, n+1: goal})
             graph = nx.random_geometric_graph(n+2, res, pos=pos)
+            graph = nx.relabel_nodes(graph, pos) # this line breaks testGridGraph
 
         # TODO: modify graph to select better edges
 
