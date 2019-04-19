@@ -36,7 +36,7 @@ class GridGraph(object):
         self.BLOCKED = 1
         self.UNBLOCKED = 0
         self.UNKNOWN = -1
-        self.robot_width = 1.0 # assuming robot is a square, what is the max_length?
+        self.robot_width = robot_width # assuming robot is a square, what is the max_length?
 
         # set up graph as soon as you read occ_grid in
         # if graph=None then build a graph
@@ -47,7 +47,7 @@ class GridGraph(object):
 
         if refmap==None:
             self.bounds = self.calc_bounding_coord()
-            self.graph = self.build_graph(graph_res, (0,0), goal, n=300)
+            self.graph = self.build_graph(graph_res, (0,0), goal, n=200)
             self._collision_check(True)
             logger.info('Built graph')
         else:
@@ -144,10 +144,14 @@ class GridGraph(object):
         toppx = int(abs(maxy - up)/self.img_res)
         downpx = max(int(abs(maxy - down)/self.img_res), imgheight - 1)
 
-        logger.debug('Bounding box of edge ({},{}): \nleft={}, right={}, top={}, down={}'
-                .format(a, b, left, right, up, down))
-        logger.debug('In pixels: left={}, right={}, top={}, down={}'
-                .format(leftpx, rightpx, toppx, downpx))
+        # logger.debug('Bounding box of edge ({},{}): \nleft={:.3f}, right={:.3f}, top={:.3f}, down={:.3f}'
+                # .format(a, b, left, right, up, down))
+        logger.debug('Bounding box of edge (({:.3f}, {:.3f}),({:.3f}, {:.3f}))'
+                    .format(a[0], a[1], b[0], b[1])) 
+        logger.debug('\tleft={:.3f}, right={:.3f}, top={:.3f}, down={:.3f}'
+                    .format(left, right, up, down))
+        logger.debug('\tIn pixels: left={}, right={}, top={}, down={}'
+                    .format(leftpx, rightpx, toppx, downpx))
 
         # Do probability check to see state of edge, assign to edge attribute
         # pixel mapping: 0 - unknown, otherwise x/255 to get probability of pixel being
@@ -175,12 +179,15 @@ class GridGraph(object):
                     p = 1
                     k += 1
                 elif p > 0.50: p = 1
+
+                # calc weight by box blurring weight values.
+
                 prob_free = prob_free*p
 
         # Assign the following states to the edge:
         # 0:unblocked, 1:blocked, -1:unknown
         prob_unknown = float(k)/n
-        logger.debug("P(free) = {}, P(unknown)  = {}"
+        logger.debug("\tP(free) = {}, P(unknown)  = {}"
                 .format(prob_free, prob_unknown))
 
         # Thresholding of edges to states
@@ -507,3 +514,12 @@ def get_origin(path):
         return origin, resolution
     else:
         logger.error("Failed to get data")
+
+def boxblur(px, bounds, k):
+    """
+    Return weights for a pixel. Assume 1 for in box and 0 for out of box
+    px - (r,c) 
+    bounds - [leftpx, rightpx, toppx, botpx]
+    
+    k -
+    """
