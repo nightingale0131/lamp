@@ -77,10 +77,12 @@ def check_weights(GG):
     print(weight)
 
 def check_neighbours(GG):
-    v = 5
+    v = (0,0)
     print('Checking neighbours of {}'.format(GG.graph.node[v]['pos']))
     neighbours = GG.neighbours(v)
-    print(neighbours)
+    for neighbour in neighbours:
+        (x,y) = neighbour
+        print(' ({:.3f},{:.3f})'.format(x,y))
 
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
@@ -91,19 +93,19 @@ if __name__ == '__main__':
     yaml = testpath + '/maps/simple1.yaml'
     nav_graph = GridGraph(pgm, yaml, (-8, 4.5), graph_res=1.5)
     print(nx.info(nav_graph.graph))
-    # nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
+    nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
 
     # overlay grid on image
     show_init_graph(nav_graph)
 
     # save new occ grid as GridGraph with refmap graph overlaid on top 
-    otherpgm = testpath + '/maps/simple2.pgm'
-    otheryaml = testpath + '/maps/simple2.yaml'
+    otherpgm = testpath + '/maps/simple_same.pgm'
+    otheryaml = testpath + '/maps/simple_same.yaml'
     other = GridGraph(otherpgm, otheryaml, (-8, 4.5), refmap=nav_graph)
     show_comparison(nav_graph, other)
 
     # test weights
-    check_weights(nav_graph)
+    # check_weights(nav_graph)
 
     # test neighbours
     check_neighbours(nav_graph)
