@@ -142,7 +142,7 @@ class GridGraph(object):
         leftpx = int(abs(left-minx)/self.img_res)
         rightpx = min(int(abs(right-minx)/self.img_res), imgwidth - 1)
         toppx = int(abs(maxy - up)/self.img_res)
-        downpx = max(int(abs(maxy - down)/self.img_res), imgheight - 1)
+        downpx = min(int(abs(maxy - down)/self.img_res), imgheight - 1)
 
         # logger.debug('Bounding box of edge ({},{}): \nleft={:.3f}, right={:.3f}, top={:.3f}, down={:.3f}'
                 # .format(a, b, left, right, up, down))
@@ -437,12 +437,12 @@ class BoundingBox(object):
         if x < self.top[0]:
             m = (self.top[1] - self.left[1])/(self.top[0] - self.left[0])
             b = self.top[1] - m*self.top[0]
-            return m*x + b
         # if x > top corner, calc intersection w/ top to right
         else:
             m = (self.top[1] - self.right[1])/(self.top[0] - self.right[0])
             b = self.top[1] - m*self.top[0]
-            return m*x + b
+
+        return m*x + b
 
     def minY(self, x):
          # x is the coordinate of the 'slice' I want to check
@@ -453,19 +453,65 @@ class BoundingBox(object):
             return None
 
         if self.m == None or utility.isclose(self.m, 0):
-            # vertical/horizontal edge, return maxy
+            # vertical/horizontal edge, return miny 
             return self.bottom[1]
 
         # otherwise if x < bottom corner, calc intersection w/ left to bottom 
         if x < self.bottom[0]:
             m = (self.bottom[1] - self.left[1])/(self.bottom[0] - self.left[0])
             b = self.bottom[1] - m*self.bottom[0]
-            return m*x + b
         # if x > bottom corner, calc intersection w/ bottom to right
         else:
             m = (self.bottom[1] - self.right[1])/(self.bottom[0] - self.right[0])
             b = self.bottom[1] - m*self.bottom[0]
-            return m*x + b
+
+        return m*x + b
+
+    def minX(self, y):
+        # y is the coordinate of the horizontal slice I want to check
+        # return left-most corner of slice
+
+        if y < self.bottom[1] or y > self.top[1]: 
+            logger.error("y is outside of the bounding box!")
+            return None
+
+        if self.m == None or utility.isclose(self.m, 0):
+            # if box is aligned with axis, return minx 
+            return self.left[0]
+
+        # otherwise if y > left corner, calc intersection w/ left to top
+        if y > self.left[1]:
+            m = (self.top[1] - self.left[1])/(self.top[0] - self.left[0])
+            b = self.left[1] - m*self.left[0]
+        # if y < left corner, calc intersection w/ bottom to left 
+        else:
+            m = (self.bottom[1] - self.left[1])/(self.bottom[0] - self.left[0])
+            b = self.left[1] - m*self.left[0]
+
+        return (y - b)/m
+
+    def maxX(self, y):
+        # y is the coordinate of the horizontal slice I want to check
+        # return right-most corner of slice
+
+        if y < self.bottom[1] or y > self.top[1]: 
+            logger.error("y is outside of the bounding box!")
+            return None
+
+        if self.m == None or utility.isclose(self.m, 0):
+            # if box is aligned with axis, return maxx 
+            return self.right[0]
+
+        # otherwise if y > right corner, calc intersection w/ right to top
+        if y > self.right[1]:
+            m = (self.top[1] - self.right[1])/(self.top[0] - self.right[0])
+            b = self.right[1] - m*self.right[0]
+        # if y > top corner, calc intersection w/ right to bottom 
+        else:
+            m = (self.bottom[1] - self.right[1])/(self.bottom[0] - self.right[0])
+            b = self.right[1] - m*self.right[0]
+
+        return (y - b)/m
 
 def halton_seq(i,b):
     # i - index
@@ -515,11 +561,106 @@ def get_origin(path):
     else:
         logger.error("Failed to get data")
 
-def boxblur(px, bounds, k):
+def gaussblur(box, bounds, pxbounds, img_res, k, weight = {}):
+    # approx gauss blur by repeating box blur
+    # return dict of weights w/ pixel coordinates as keys
+    W = boxblur(box, bounds, pxbounds, img_res, k)
+    W = boxblur(box, bounds, pxbounds, img_res, k, W)
+    W = boxblur(box, bounds, pxbounds, img_res, k, W)
+
+    return W
+
+def boxblur(box, bounds, pxbounds, img_res, k, weight = {}):
     """
-    Return weights for a pixel. Assume 1 for in box and 0 for out of box
-    px - (r,c) 
-    bounds - [leftpx, rightpx, toppx, botpx]
-    
-    k -
+    Return weights for bounding box. Assume 1 for in box and 0 for out of box
+    box - BoundingBox object 
+    bounds - [minx, maxx, miny, maxy] cartesian boundaries of occ_grid
+    pxbounds - [leftpx, rightpx, toppx, botpx] pixel boundaries
+
+    k -  kernel size
+    http://blog.ivank.net/fastest-gaussian-blur.html
     """
+    W = boxblurV(box, bounds, pxbounds, img_res, k, weight)
+    W = boxblurH(box, bounds, pxbounds, img_res, k, W)
+
+    return W
+
+def boxblurH(box, bounds, pxbounds, img_res, k, weight = {}):
+    # assume this will be run first
+    (leftpx, rightpx, toppx, botpx) = pxbounds # px bounds of box
+    (minx, maxx, miny, maxy) = bounds # bounds of environment
+    r = k/2 # kernel radius
+    if weight == {}: first_time = True
+    else: first_time = False
+
+    print("Estimated weight for edge:") # for debugging
+
+    for row in xrange(toppx, botpx + 1):
+        topy = min(maxy - row*img_res, box.top[1])
+        boty = max(maxy - (row + 1)*img_res, box.bottom[1])
+        slice_leftx = max(box.left[0], min(box.minX(topy), box.minX(boty)))
+        slice_rightx = min(box.right[0], max(box.maxX(topy), box.maxX(boty)))
+
+        slice_leftpx = max(int((slice_leftx - minx)/img_res), leftpx)
+        slice_rightpx = min(int((slice_rightx - minx)/img_res), rightpx) 
+
+        # print("{}: {} - {}".format(row, slice_leftpx, slice_rightpx)),
+        # print(" [topy:{:.3f} boty:{:.3f}, {:.3f} - {:.3f}]"
+              # .format(topy, boty, slice_leftx, slice_rightx))
+
+        nspaces = slice_leftpx - leftpx
+        print("".rjust(nspaces*5)),
+
+        for col in xrange(slice_leftpx, slice_rightpx + 1):
+            # finally have the pixel I want to calc weight for
+            val = 0
+            for i in xrange(col - r, col + r + 1):
+                if i < slice_leftpx or i > slice_rightpx: val += 0.0
+                elif first_time == False: val += weight[(row, i)]
+                else: val += 1.0
+
+            weight.update({(row,col): val/(r + r + 1)})
+            print("{:.2f}".format(weight[(row,col)])), # for debugging
+
+        print(" ") # for debugging
+    return weight
+
+def boxblurV(box, bounds, pxbounds, img_res, k, weight = {}):
+    # assume this will be run first
+    (leftpx, rightpx, toppx, botpx) = pxbounds # px bounds of box
+    (minx, maxx, miny, maxy) = bounds # bounds of environment
+    r = k/2 # kernel radius
+    if weight == {}: first_time = True
+    else: first_time = False
+
+    # print("Estimated weight for edge:") # for debugging
+
+    for col in xrange(leftpx, rightpx + 1):
+        leftx = max(col*img_res + minx, box.left[0])
+        rightx = min((col + 1)*img_res + minx, box.right[0])
+        slice_topy = min(box.top[1], max(box.maxY(leftx), box.maxY(rightx)))
+        slice_boty = max(box.bottom[1], min(box.minY(leftx), box.minY(rightx)))
+
+        slice_toppx = max(int((maxy - slice_topy)/img_res), toppx)
+        slice_botpx = min(int(abs(maxy - slice_boty)/img_res), botpx)
+
+        print("{}: {} - {}".format(col, slice_toppx, slice_botpx)),
+        print(" [leftx:{:.3f} rightx:{:.3f}, {:.3f} - {:.3f}]"
+              .format(leftx, rightx, slice_topy, slice_boty))
+
+        # nspaces = slice_toppx - leftpx
+        # print("*".rjust(nspaces*4)),
+
+        for row in xrange(slice_toppx, slice_botpx + 1):
+            # finally have the pixel I want to calc weight for
+            val = 0
+            for i in xrange(row - r, row + r + 1):
+                if i < slice_toppx or i > slice_botpx: val += 0.0
+                elif first_time == False: val += weight[(i, col)]
+                else: val += 1.0
+
+            weight.update({(row,col): val/(r + r + 1)})
+            # print("{:.2f}".format(weight[(row,col)])), # for debugging
+
+        # print(" ") # for debugging
+    return weight
