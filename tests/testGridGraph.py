@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 
-from policy.gridgraph import GridGraph
+from policy.gridgraph import GridGraph, BoundingBox, boxblur, boxblurV
 import networkx as nx
 import cv2
 from matplotlib import pyplot as plt
@@ -84,6 +84,31 @@ def check_neighbours(GG):
         (x,y) = neighbour
         print(' ({:.3f},{:.3f})'.format(x,y))
 
+def check_blur(GG):
+    """
+    # test data taken from debug file:
+    DEBUG:policy.gridgraph:Bounding box of edge ((0.571, 0.031),(0.000, 0.000))
+    DEBUG:policy.gridgraph: left=-0.263, right=0.834, top=0.295, down=-0.263
+    DEBUG:policy.gridgraph: In pixels: left=181, right=203, top=141, down=152
+    DEBUG:policy.gridgraph: P(free) = 1, P(unknown)  = 0.0
+
+    DEBUG:policy.gridgraph:Bounding box of edge ((0.571, 0.031),(0.753, -1.124))
+    DEBUG:policy.gridgraph: left=0.285, right=1.039, top=0.317, down=-1.410
+    DEBUG:policy.gridgraph: In pixels: left=192, right=207, top=140, down=175
+    DEBUG:policy.gridgraph: P(free) = 1, P(unknown)  = 0.0
+    """
+
+    (a,b) = ((0.571, 0.031),(0.753, -1.124))
+    box = BoundingBox(0.25, a, b)
+    print("box bounds: left={:.3f}, right={:.3f}, top={:.3f}, bottom={:.3f}"
+          .format(box.left[0], box.right[0], box.top[1], box.bottom[1]))
+    bounds = GG.bounds
+    pxbounds = (192, 207, 140, 175)
+    kernel = 3
+    W = boxblur(box, bounds, pxbounds, GG.img_res, kernel)
+    W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
+    W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
+
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
     logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.DEBUG)
@@ -108,6 +133,7 @@ if __name__ == '__main__':
     # check_weights(nav_graph)
 
     # test neighbours
-    check_neighbours(nav_graph)
+    # check_neighbours(nav_graph)
 
+    check_blur(nav_graph)
     raw_input('Press any key to continue')
