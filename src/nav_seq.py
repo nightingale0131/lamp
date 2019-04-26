@@ -97,6 +97,7 @@ class MoveBaseSeq():
 
     def movebase_client(self):
         self.set_and_send_next_goal()
+        # enter part to cancel goals if obstacle detected, or you can specify timeout
         rospy.spin()
 
     def set_and_send_next_goal(self):

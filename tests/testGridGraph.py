@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 
-from policy.gridgraph import GridGraph, BoundingBox, boxblur, boxblurV
+from policy.gridgraph import GridGraph, BoundingBox, boxblur, boxblurV, gaussblur
 import networkx as nx
 import cv2
 from matplotlib import pyplot as plt
@@ -25,7 +25,7 @@ def show_init_graph(gridgraph):
     not_blocked, unknown = _get_not_blocked_edges(gridgraph)
 
     plt.imshow(gridgraph.occ_grid, cmap='gray', interpolation='bicubic', extent=gridgraph.bounds)
-    nx.draw(gridgraph.graph, pos, node_size=20, edgelist=not_blocked)
+    nx.draw(gridgraph.graph, pos, node_size=20, edgelist=not_blocked, with_labels=True)
     nx.draw(gridgraph.graph, pos, node_size=20, edgelist=unknown, edge_color='g')
     plt.show(block=False)
 
@@ -40,7 +40,7 @@ def show_comparison(refmap, newmap):
     fig, [ax1, ax2] = plt.subplots(1,2)
     ax1.imshow(refmap.occ_grid, cmap='gray', interpolation='bicubic',
             extent=refmap.bounds)
-    nx.draw(refmap.graph, pos, ax=ax1, node_size=20, edgelist=not_blocked)
+    nx.draw(refmap.graph, pos, ax=ax1, node_size=20, edgelist=not_blocked, )
     nx.draw(refmap.graph, pos, ax=ax1, node_size=20, edgelist=unknown, edge_color='g')
     ax1.set_axis_on()
 
@@ -98,25 +98,26 @@ def check_blur(GG):
     DEBUG:policy.gridgraph: P(free) = 1, P(unknown)  = 0.0
     """
 
-    (a,b) = ((0.571, 0.031),(0.753, -1.124))
+    (a,b) = ((-9.122, 3.354),(-9.304, 4.509)) 
     box = BoundingBox(0.25, a, b)
     print("box bounds: left={:.3f}, right={:.3f}, top={:.3f}, bottom={:.3f}"
           .format(box.left[0], box.right[0], box.top[1], box.bottom[1]))
     bounds = GG.bounds
-    pxbounds = (192, 207, 140, 175)
+    pxbounds = (0,10,51,85)
     kernel = 3
-    W = boxblur(box, bounds, pxbounds, GG.img_res, kernel)
-    W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
-    W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
+    # W = boxblur(box, bounds, pxbounds, GG.img_res, kernel)
+    # W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
+    # W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
+    W = gaussblur(box, bounds, pxbounds, GG.img_res, kernel)
 
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
-    logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.DEBUG)
+    logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.INFO)
 
     # build base graph on initial map 
-    pgm = testpath + '/maps/simple1.pgm'
-    yaml = testpath + '/maps/simple1.yaml'
-    nav_graph = GridGraph(pgm, yaml, (-8, 4.5), graph_res=1.5)
+    pgm = testpath + '/maps/test1_1.pgm'
+    yaml = testpath + '/maps/test1_1.yaml'
+    nav_graph = GridGraph(pgm, yaml, (-8, 4.5), graph_res=1.5, robot_width=1.0)
     print(nx.info(nav_graph.graph))
     nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
 
@@ -124,10 +125,30 @@ if __name__ == '__main__':
     show_init_graph(nav_graph)
 
     # save new occ grid as GridGraph with refmap graph overlaid on top 
-    otherpgm = testpath + '/maps/simple_same.pgm'
-    otheryaml = testpath + '/maps/simple_same.yaml'
-    other = GridGraph(otherpgm, otheryaml, (-8, 4.5), refmap=nav_graph)
+    otherpgm = testpath + '/maps/test1_3.pgm'
+    otheryaml = testpath + '/maps/test1_3.yaml'
+    other = GridGraph(otherpgm, otheryaml, (-8, 4.5), refmap=nav_graph, robot_width=1.0)
     show_comparison(nav_graph, other)
+
+    # calculate all pairs shortest path
+    first = nx.floyd_warshall(nav_graph.graph)
+    second = nx.floyd_warshall(other.graph)
+
+    diff = [] 
+    for v,targets in first.items():
+        for u,length in targets.items():
+            if length > 0:
+                difference = (second[v][u] - length)/length
+            else: difference = second[v][u] - length
+            print("{:.3f}".format(difference))
+            diff.append(difference)
+
+    print(min(diff))
+    count = 0
+    for i in diff:
+        if i < -0.5: count +=1
+
+    print("num of diff < -0.5: {}".format(count))
 
     # test weights
     # check_weights(nav_graph)
@@ -135,5 +156,5 @@ if __name__ == '__main__':
     # test neighbours
     # check_neighbours(nav_graph)
 
-    check_blur(nav_graph)
+    # check_blur(nav_graph)
     raw_input('Press any key to continue')

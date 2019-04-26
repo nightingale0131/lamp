@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-__author__ = 'fiorellasibona' # repurposed code
 import rospy, rospkg
 import os
 import math
@@ -17,10 +16,10 @@ if __name__ == '__main__':
     rospack = rospkg.RosPack()
     pkgdir = rospack.get_path('policy')
     mapdir = pkgdir + '/maps/'
-    pgm0 = mapdir + 'simple1.pgm'
-    yaml0 = mapdir + 'simple1.yaml'
+    pgm0 = mapdir + 'simple2.pgm'
+    yaml0 = mapdir + 'simple2.yaml'
 
-    map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5)
+    map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
     print(nx.info(map0.graph))
     # nx.write_adjlist(map0.graph, pkgdir + '/src/map0.adjlist', delimiter=',')
 

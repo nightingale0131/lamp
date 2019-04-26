@@ -47,7 +47,7 @@ class GridGraph(object):
 
         if refmap==None:
             self.bounds = self.calc_bounding_coord()
-            self.graph = self.build_graph(graph_res, (0,0), goal, n=200)
+            self.graph = self.build_graph(graph_res, (0,0), goal, n=100)
             self._collision_check(True)
             logger.info('Built graph')
         else:
@@ -55,7 +55,6 @@ class GridGraph(object):
             logger.info('Imported graph')
             self._align(refmap.occ_grid)
             self.origin = refmap.origin
-            # self.origin = self._calc_transformed_origin(refmap)
             logger.debug('Modified origin: {}'.format(self.origin))
             self.bounds = self.calc_bounding_coord()
             self._collision_check()
@@ -76,6 +75,7 @@ class GridGraph(object):
 
     def _transform_pixel(self, pixel, h):
         """
+            Currently not used.
             Assuming h = a b c
                          d e f
                          g h i
@@ -131,11 +131,14 @@ class GridGraph(object):
 
         padding = self.robot_width/2
         box = BoundingBox( padding, a, b)
-
-        left = max(box.left[0], minx)
+        # calculate boundaries of bounding box to fit in occ_grid boundaries
+        (left, right, up, down) = box.mod_bounds(self.bounds)
+        """
+        left = max(box.left[0], minx, maxX(maxy))
         right = min(box.right[0], maxx)
         up = min(box.top[1], maxy)
         down = max(box.bottom[1], miny)
+        """
 
         # Calculate which pixels need to be checked, these pixels have to be included
         # (0,0) is in top left of image
@@ -144,14 +147,25 @@ class GridGraph(object):
         toppx = int(abs(maxy - up)/self.img_res)
         downpx = min(int(abs(maxy - down)/self.img_res), imgheight - 1)
 
-        # logger.debug('Bounding box of edge ({},{}): \nleft={:.3f}, right={:.3f}, top={:.3f}, down={:.3f}'
-                # .format(a, b, left, right, up, down))
-        logger.debug('Bounding box of edge (({:.3f}, {:.3f}),({:.3f}, {:.3f}))'
+        logger.info('Checking edge (({:.3f}, {:.3f}),({:.3f}, {:.3f}))'
                     .format(a[0], a[1], b[0], b[1])) 
         logger.debug('\tleft={:.3f}, right={:.3f}, top={:.3f}, down={:.3f}'
                     .format(left, right, up, down))
         logger.debug('\tIn pixels: left={}, right={}, top={}, down={}'
                     .format(leftpx, rightpx, toppx, downpx))
+
+        pxbounds = [leftpx, rightpx, toppx, downpx]
+
+        # If needed, calculate the importance of each pixel in bounding box
+        try:
+            importance = self.graph.edge[a][b]['importance']
+            # ^ dictionary: {(row,col): value}
+        except KeyError:
+            logger.info('\tCalculating blur')
+            logger.debug('Box corners: {}, {}, {}, {}'
+                    .format(box.left, box.right, box.top, box.bottom))
+            importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
+            self.graph.edge[a][b]['importance'] = importance
 
         # Do probability check to see state of edge, assign to edge attribute
         # pixel mapping: 0 - unknown, otherwise x/255 to get probability of pixel being
@@ -166,8 +180,17 @@ class GridGraph(object):
             # clamp Y to border of image, and x to bounding box left & right
             leftx = max(col*self.img_res + minx, left)
             rightx = min((col + 1)*self.img_res + minx, right)
-            slice_topy = min(up, max(box.maxY(leftx), box.maxY(rightx)))
-            slice_boty = max(down, min(box.minY(leftx), box.minY(rightx)))
+
+            # dealing with case where corner is in pixel
+            if box.top[0] > leftx and box.top[0] < rightx:
+                slice_topy = box.top[1]
+            else:
+                slice_topy = max(box.maxY(leftx), box.maxY(rightx))
+
+            if box.bottom[0] > leftx and box.bottom[0] < rightx:
+                slice_boty = box.bottom[1]
+            else:
+                slice_boty = min(box.minY(leftx), box.minY(rightx))
 
             toppx = int(abs(maxy - slice_topy)/self.img_res)
             downpx = min(int(abs(maxy - slice_boty)/self.img_res), imgheight - 1)
@@ -180,20 +203,26 @@ class GridGraph(object):
                     k += 1
                 elif p > 0.50: p = 1
 
-                # calc weight by box blurring weight values.
-
+                w = importance[(row,col)]
+                # prob_free = prob_free*math.pow(p, w)
                 prob_free = prob_free*p
 
         # Assign the following states to the edge:
         # 0:unblocked, 1:blocked, -1:unknown
         prob_unknown = float(k)/n
-        logger.debug("\tP(free) = {}, P(unknown)  = {}"
+        logger.info("\tP(free) = {:.3f}, P(unknown)  = {:.3f}"
                 .format(prob_free, prob_unknown))
+
+        self.graph[u][v]['prob'] = prob_free
+        self.graph[u][v]['dist'] = self.weight(u,v)
+        self.graph[u][v]['weight'] = self.graph[u][v]['dist']*prob_free
 
         # Thresholding of edges to states
         # The following is problematic/too simple
         if prob_free < 0.2: self.graph[u][v]['state'] = self.BLOCKED
-        elif prob_unknown > 0.5: self.graph[u][v]['state'] = self.UNKNOWN
+        elif prob_unknown > 0.5: 
+            self.graph[u][v]['state'] = self.UNKNOWN
+            self.graph[u][v]['prob'] = 0.5 
         elif prob_free > 0.7: self.graph[u][v]['state'] = self.UNBLOCKED
         else: self.graph[u][v]['state'] = self.UNKNOWN
 
@@ -267,7 +296,7 @@ class GridGraph(object):
 
             pos.update({n: start, n+1: goal})
             graph = nx.random_geometric_graph(n+2, res, pos=pos)
-            graph = nx.relabel_nodes(graph, pos) # this line breaks testGridGraph
+            graph = nx.relabel_nodes(graph, pos)
 
         # TODO: modify graph to select better edges
 
@@ -421,6 +450,39 @@ class BoundingBox(object):
 
             self.m = m # useful to have
 
+    def mod_bounds(self, bounds):
+        # assuming bounds = [minx, maxx, miny, maxy]
+        # Given these bounds (must be rectangle), determine the left, right, top, bottom
+        # of the bounding box such that it is completely contained in the bounds
+
+        [minx, maxx, miny, maxy] = bounds
+
+        # left
+        if self.left[0] < minx: left = minx
+        elif self.left[1] > maxy: left = self.minX(maxy)
+        elif self.left[1] < miny: left = self.minX(miny)
+        else: left = self.left[0]
+
+        # right
+        if self.right[0] > maxx: right = maxx 
+        elif self.right[1] > maxy: right = self.maxX(maxy)
+        elif self.right[1] < miny: right = self.maxX(miny)
+        else: right = self.right[0]
+
+        # top
+        if self.top[1] > maxy: top = maxy
+        elif self.top[0] < minx: top = self.maxY(minx)
+        elif self.top[0] > maxx: top = self.maxY(maxx)
+        else: top = self.top[1]
+
+        # bottom
+        if self.bottom[1] < miny: bottom = miny
+        elif self.bottom[0] < minx: bottom = self.minY(minx)
+        elif self.bottom[0] > maxx: bottom = self.minY(maxx)
+        else: bottom = self.bottom[1]
+ 
+        return (left, right, top, bottom)
+
     def maxY(self, x):
         # x is the coordinate of the 'slice' I want to check
         # return the top of the slice that's in the box
@@ -561,55 +623,70 @@ def get_origin(path):
     else:
         logger.error("Failed to get data")
 
-def gaussblur(box, bounds, pxbounds, img_res, k, weight = {}):
+def gaussblur(box, bounds, pxbounds, img_res, k):
     # approx gauss blur by repeating box blur
     # return dict of weights w/ pixel coordinates as keys
-    W = boxblur(box, bounds, pxbounds, img_res, k)
+    # more optimization: http://blog.ivank.net/fastest-gaussian-blur.html
+    W = {}
+    logger.debug("\tFirst blur")
     W = boxblur(box, bounds, pxbounds, img_res, k, W)
+    logger.debug("\tSecond blur")
+    W = boxblur(box, bounds, pxbounds, img_res, k, W)
+    logger.debug("\tThird blur")
     W = boxblur(box, bounds, pxbounds, img_res, k, W)
 
     return W
 
-def boxblur(box, bounds, pxbounds, img_res, k, weight = {}):
+def boxblur(box, bounds, pxbounds, img_res, k, weight):
     """
     Return weights for bounding box. Assume 1 for in box and 0 for out of box
     box - BoundingBox object 
     bounds - [minx, maxx, miny, maxy] cartesian boundaries of occ_grid
     pxbounds - [leftpx, rightpx, toppx, botpx] pixel boundaries
 
-    k -  kernel size
-    http://blog.ivank.net/fastest-gaussian-blur.html
+    k -  kernel size, must be odd number
     """
+    logger.debug("size of weight = {}".format(len(weight)))
     W = boxblurV(box, bounds, pxbounds, img_res, k, weight)
     W = boxblurH(box, bounds, pxbounds, img_res, k, W)
 
     return W
 
-def boxblurH(box, bounds, pxbounds, img_res, k, weight = {}):
+def boxblurH(box, bounds, pxbounds, img_res, k, weight):
     # assume this will be run first
     (leftpx, rightpx, toppx, botpx) = pxbounds # px bounds of box
     (minx, maxx, miny, maxy) = bounds # bounds of environment
     r = k/2 # kernel radius
-    if weight == {}: first_time = True
+    if not weight: first_time = True
     else: first_time = False
 
-    print("Estimated weight for edge:") # for debugging
+    logger.debug("Horizontal blur...")
 
     for row in xrange(toppx, botpx + 1):
         topy = min(maxy - row*img_res, box.top[1])
         boty = max(maxy - (row + 1)*img_res, box.bottom[1])
-        slice_leftx = max(box.left[0], min(box.minX(topy), box.minX(boty)))
-        slice_rightx = min(box.right[0], max(box.maxX(topy), box.maxX(boty)))
 
+        # Dealing with case where pixel contains corner
+        if box.left[1] < topy and box.left[1] > boty:
+            slice_leftx = box.left[0]
+        else:
+            slice_leftx = min(box.minX(topy), box.minX(boty))
+
+        if box.right[1] < topy and box.right[1] > boty:
+            slice_rightx = box.right[0]
+        else:
+            slice_rightx = max(box.maxX(topy), box.maxX(boty))
+
+        # clamp pixel limits to within image
         slice_leftpx = max(int((slice_leftx - minx)/img_res), leftpx)
         slice_rightpx = min(int((slice_rightx - minx)/img_res), rightpx) 
 
-        # print("{}: {} - {}".format(row, slice_leftpx, slice_rightpx)),
-        # print(" [topy:{:.3f} boty:{:.3f}, {:.3f} - {:.3f}]"
-              # .format(topy, boty, slice_leftx, slice_rightx))
+        logger.debug("{}: {} - {}".format(row, slice_leftpx, slice_rightpx) +
+            " [topy:{:.3f} boty:{:.3f}, {:.3f} - {:.3f}]"
+            .format(topy, boty, slice_leftx, slice_rightx))
 
-        nspaces = slice_leftpx - leftpx
-        print("".rjust(nspaces*5)),
+        # nspaces = slice_leftpx - leftpx
+        # print("".rjust(nspaces*5)),
 
         for col in xrange(slice_leftpx, slice_rightpx + 1):
             # finally have the pixel I want to calc weight for
@@ -620,36 +697,43 @@ def boxblurH(box, bounds, pxbounds, img_res, k, weight = {}):
                 else: val += 1.0
 
             weight.update({(row,col): val/(r + r + 1)})
-            print("{:.2f}".format(weight[(row,col)])), # for debugging
+            # print("{:.2f}".format(weight[(row,col)])), # for debugging
 
-        print(" ") # for debugging
+        # print(" ") # for debugging
     return weight
 
-def boxblurV(box, bounds, pxbounds, img_res, k, weight = {}):
+def boxblurV(box, bounds, pxbounds, img_res, k, weight):
     # assume this will be run first
     (leftpx, rightpx, toppx, botpx) = pxbounds # px bounds of box
     (minx, maxx, miny, maxy) = bounds # bounds of environment
     r = k/2 # kernel radius
-    if weight == {}: first_time = True
+    if not weight: first_time = True
     else: first_time = False
 
-    # print("Estimated weight for edge:") # for debugging
+
+    logger.debug("Vertical blur...") # for debugging
 
     for col in xrange(leftpx, rightpx + 1):
         leftx = max(col*img_res + minx, box.left[0])
         rightx = min((col + 1)*img_res + minx, box.right[0])
-        slice_topy = min(box.top[1], max(box.maxY(leftx), box.maxY(rightx)))
-        slice_boty = max(box.bottom[1], min(box.minY(leftx), box.minY(rightx)))
+
+        # dealing with case where corner is in pixel
+        if box.top[0] > leftx and box.top[0] < rightx:
+            slice_topy = box.top[1]
+        else:
+            slice_topy = max(box.maxY(leftx), box.maxY(rightx))
+
+        if box.bottom[0] > leftx and box.bottom[0] < rightx:
+            slice_boty = box.bottom[1]
+        else:
+            slice_boty = min(box.minY(leftx), box.minY(rightx))
 
         slice_toppx = max(int((maxy - slice_topy)/img_res), toppx)
         slice_botpx = min(int(abs(maxy - slice_boty)/img_res), botpx)
 
-        print("{}: {} - {}".format(col, slice_toppx, slice_botpx)),
-        print(" [leftx:{:.3f} rightx:{:.3f}, {:.3f} - {:.3f}]"
-              .format(leftx, rightx, slice_topy, slice_boty))
-
-        # nspaces = slice_toppx - leftpx
-        # print("*".rjust(nspaces*4)),
+        logger.debug("{}: {} - {}".format(col, slice_toppx, slice_botpx) +
+            " [leftx:{:.3f} rightx:{:.3f}, {:.3f} - {:.3f}]"
+            .format(leftx, rightx, slice_topy, slice_boty))
 
         for row in xrange(slice_toppx, slice_botpx + 1):
             # finally have the pixel I want to calc weight for
@@ -660,7 +744,5 @@ def boxblurV(box, bounds, pxbounds, img_res, k, weight = {}):
                 else: val += 1.0
 
             weight.update({(row,col): val/(r + r + 1)})
-            # print("{:.2f}".format(weight[(row,col)])), # for debugging
 
-        # print(" ") # for debugging
     return weight
