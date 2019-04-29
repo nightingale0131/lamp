@@ -6,8 +6,7 @@ import os
 import networkx as nx
 
 import actionlib
-from nav_seq import MoveBaseSeq
-from policy.gridgraph import GridGraph
+from policy.gridgraph import GridGraph, LiveGridGraph
 from policy import utility as util
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -170,16 +169,16 @@ class MoveBaseSeq():
         width = data.info.width
         occ_grid = data.data
         rospy.loginfo("Width of occ grid: {}".format(width))
-        LiveMap = LiveGridGraph(data, base_map, robot_width=0.5)
+        LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
         path_blocked = False;
-        for i in range(goal_cnt, len(path)):
+        for i in range(self.goal_cnt, len(path)):
             (u,v) = path[i]
             LiveMap._edge_check((u,v))
             if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
                 path_blocked = True;
         if path_blocked:
             LiveMap._collision_check
-            start = path[goal_cnt]
+            start = path[self.goal_cnt]
             goal = path[-1]
             came_from, cost_so_far = util.a_star_search(LiveMap,start,goal)
             path = util.reconstruct_path(came_from, start, goal)
@@ -195,8 +194,8 @@ if __name__ == '__main__':
     rospack = rospkg.RosPack()
     pkgdir = rospack.get_path('policy')
     mapdir = pkgdir + '/maps/'
-    pgm0 = mapdir + 'simple2.pgm'
-    yaml0 = mapdir + 'simple2.yaml'
+    pgm0 = mapdir + 'simple1.pgm'
+    yaml0 = mapdir + 'simple1.yaml'
 
     map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
     print(nx.info(map0.graph))
@@ -213,6 +212,6 @@ if __name__ == '__main__':
 
     # give path to MoveBaseSeq
     try:
-        MoveBaseSeq(path)
+        MoveBaseSeq(path, map0)
     except rospy.ROSInterruptException:
         rospy.loginfo("Navigation finished.")
