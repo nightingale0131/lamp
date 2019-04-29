@@ -172,18 +172,19 @@ class MoveBaseSeq():
         LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
         path_blocked = False;
         for i in range(self.goal_cnt, len(path)):
-            (u,v) = path[i]
+            u = (pose_seq[i-1].position.x, pose_seq[i-1].position.y)
+            v = (pose_seq[i].position.x, pose_seq[i].position.y)
             LiveMap._edge_check((u,v))
             if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
                 path_blocked = True;
         if path_blocked:
             LiveMap._collision_check
-            start = path[self.goal_cnt]
-            goal = path[-1]
+            start = (pose_seq[self.goal_cnt].position.x, pose_seq[self.goal_cnt].position.y)
+            goal = (pose_seq[-1].position.x, pose_seq[-1].position.y)
             came_from, cost_so_far = util.a_star_search(LiveMap,start,goal)
             path = util.reconstruct_path(came_from, start, goal)
             self.set_new_path(path, at_first_node = False)
-            self.movebase_client()
+            self.set_and_send_next_goal()
             # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
 
 if __name__ == '__main__':
