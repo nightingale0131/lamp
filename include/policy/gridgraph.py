@@ -4,6 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import networkx as nx
+import numpy as np
 import cv2
 from matplotlib import pyplot as plt
 from align import alignImages 
@@ -103,7 +104,10 @@ class GridGraph(object):
         (x1, y1) = u
         (x2, y2) = v
         # need to check edge state 
-        return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
+        if self.graph[u][v]['state'] == self.BLOCKED:
+            return float('inf')
+        else:
+            return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
 
     def known_weight(self, u, v, attr=None):
         # assuming this will be used with networkx dijkstra
@@ -194,9 +198,9 @@ class GridGraph(object):
                     k += 1
                 elif p > 0.50: p = 1
 
-                w = importance[(row,col)]
-                prob_free = prob_free*math.pow(p, w)
-                # prob_free = prob_free*p
+                # w = importance[(row,col)]
+                # prob_free = prob_free*math.pow(p, w)
+                prob_free = prob_free*p
 
         # Assign the following states to the edge:
         # 0:unblocked, 1:blocked, -1:unknown
@@ -205,7 +209,7 @@ class GridGraph(object):
                 .format(prob_free, prob_unknown))
 
         self.graph[u][v]['prob'] = prob_free
-        self.graph[u][v]['dist'] = self.weight(u,v)
+        self.graph[u][v]['dist'] = utility.heuristic(u,v)
         self.graph[u][v]['weight'] = self.graph[u][v]['dist']*prob_free
 
         # Thresholding of edges to states
@@ -390,12 +394,22 @@ class LiveGridGraph(GridGraph):
         self.origin = [occ_grid.info.origin.position.x,
                        occ_grid.info.origin.position.y,
                        occ_grid.info.origin.position.z]
-        self.img_res = occ_grid.info.origin.resolution
+        self.img_res = occ_grid.info.resolution
         self.imgwidth = occ_grid.info.width
         self.imgheight = occ_grid.info.height
         self.bounds = self.calc_bounding_coord()
         self.graph = refmap.graph.copy()
 
+        # convert occ_grid.data into numpy matrix so then occ_grid[row, col] will work
+        self.occ_grid = list_to_matrix(occ_grid.data, self.imgwidth, self.imgheight)
+
+def list_to_matrix(raw_data, width, height):
+    matrix = np.empty((height, width))
+    for row in xrange(height):
+        for col in xrange(width):
+            matrix[row,col] = raw_data[row*width + col]
+
+    return matrix
 
 class BoundingBox(object):
     # bounding box of an edge
