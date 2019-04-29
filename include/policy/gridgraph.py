@@ -44,9 +44,9 @@ class GridGraph(object):
         #   origins are all in the same location in ref to the world
         self.occ_grid = cv2.imread(gridfile, cv2.IMREAD_GRAYSCALE)
         self.origin, self.img_res = get_origin(yamlfile)
-        (self.imgheight, self.imgwidth) = self.occ_grid.shape
 
         if refmap==None:
+            (self.imgheight, self.imgwidth) = self.occ_grid.shape
             self.bounds = self.calc_bounding_coord()
             self.graph = self.build_graph(graph_res, (0,0), goal, n=200)
             self._collision_check(True)
@@ -57,6 +57,7 @@ class GridGraph(object):
             self._align(refmap.occ_grid)
             self.origin = refmap.origin
             logger.debug('Modified origin: {}'.format(self.origin))
+            (self.imgheight, self.imgwidth) = self.occ_grid.shape
             self.bounds = self.calc_bounding_coord()
             self._collision_check()
 
@@ -99,8 +100,8 @@ class GridGraph(object):
         # attr - dictionary of edge attributes, this is not used, but these 3 arguments
         #        are needed to satisfy networkx dijkstra function requirements
         # considers unknowns as unblocked edges
-        (x1, y1) = self.graph.node[u]['pos']
-        (x2, y2) = self.graph.node[v]['pos']
+        (x1, y1) = u
+        (x2, y2) = v
         # need to check edge state 
         return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
 
@@ -118,29 +119,17 @@ class GridGraph(object):
         # (a,b) = edge # comment this for random graph
         (u,v) = edge
         # Below is for random graph
-        a = self.graph.node[u]['pos']
-        b = self.graph.node[v]['pos']
+        a = u
+        b = v
+        # a = self.graph.node[u]['pos']
+        # b = self.graph.node[v]['pos']
 
         # TODO: if edge is outside of map bounds, return as unknown
-        """
-        if (b[0] - a[0] < 0) or (b[1] - a[1] > 0):
-            (x1, y1) = b
-            (x2, y2) = a
-        else:
-            (x1, y1) = a
-            (x2, y2) = b
-        """
 
         padding = self.robot_width/2
         box = BoundingBox( padding, a, b)
         # calculate boundaries of bounding box to fit in occ_grid boundaries
         (left, right, up, down) = box.mod_bounds(self.bounds)
-        """
-        left = max(box.left[0], minx, maxX(maxy))
-        right = min(box.right[0], maxx)
-        up = min(box.top[1], maxy)
-        down = max(box.bottom[1], miny)
-        """
 
         # Calculate which pixels need to be checked, these pixels have to be included
         # (0,0) is in top left of image
