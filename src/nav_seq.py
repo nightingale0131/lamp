@@ -171,7 +171,7 @@ class MoveBaseSeq():
         rospy.loginfo("Width of occ grid: {}".format(width))
         LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
         path_blocked = False;
-        for i in range(self.goal_cnt, len(self.pose_seq)):
+        for i in range(max(1, self.goal_cnt), len(self.pose_seq)):
             u = (self.pose_seq[i-1].position.x, self.pose_seq[i-1].position.y)
             v = (self.pose_seq[i].position.x, self.pose_seq[i].position.y)
             LiveMap._edge_check((u,v))
