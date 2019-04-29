@@ -183,6 +183,11 @@ class MoveBaseSeq():
             goal = (self.pose_seq[-1].position.x, self.pose_seq[-1].position.y)
             came_from, cost_so_far = util.a_star_search(LiveMap,start,goal)
             path = util.reconstruct_path(came_from, start, goal)
+            # add z value to path tuples
+            for i in range(len(path)):
+                (x,y) = path[i]
+                path[i] = (x,y,0.0)
+                #print(path[i])    
             self.set_new_path(path, at_first_node = False)
             self.set_and_send_next_goal()
             # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
