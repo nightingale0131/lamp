@@ -44,14 +44,15 @@ class GridGraph(object):
         #   origins are all in the same location in ref to the world
         self.occ_grid = cv2.imread(gridfile, cv2.IMREAD_GRAYSCALE)
         self.origin, self.img_res = get_origin(yamlfile)
+        (self.imgheight, self.imgwidth) = self.occ_grid.shape
 
         if refmap==None:
             self.bounds = self.calc_bounding_coord()
-            self.graph = self.build_graph(graph_res, (0,0), goal, n=100)
+            self.graph = self.build_graph(graph_res, (0,0), goal, n=200)
             self._collision_check(True)
             logger.info('Built graph')
         else:
-            self.graph = refmap.graph.copy()
+            self.graph = refmap.graph.copy() 
             logger.info('Imported graph')
             self._align(refmap.occ_grid)
             self.origin = refmap.origin
@@ -114,12 +115,13 @@ class GridGraph(object):
     def _edge_check(self, edge):
         # get bounding box on graph edge
         (minx, maxx, miny, maxy) = self.bounds
-        (imgheight, imgwidth) = self.occ_grid.shape
         # (a,b) = edge # comment this for random graph
         (u,v) = edge
         # Below is for random graph
         a = self.graph.node[u]['pos']
         b = self.graph.node[v]['pos']
+
+        # TODO: if edge is outside of map bounds, return as unknown
         """
         if (b[0] - a[0] < 0) or (b[1] - a[1] > 0):
             (x1, y1) = b
@@ -143,9 +145,9 @@ class GridGraph(object):
         # Calculate which pixels need to be checked, these pixels have to be included
         # (0,0) is in top left of image
         leftpx = int(abs(left-minx)/self.img_res)
-        rightpx = min(int(abs(right-minx)/self.img_res), imgwidth - 1)
+        rightpx = min(int(abs(right-minx)/self.img_res), self.imgwidth - 1)
         toppx = int(abs(maxy - up)/self.img_res)
-        downpx = min(int(abs(maxy - down)/self.img_res), imgheight - 1)
+        downpx = min(int(abs(maxy - down)/self.img_res), self.imgheight - 1)
 
         logger.info('Checking edge (({:.3f}, {:.3f}),({:.3f}, {:.3f}))'
                     .format(a[0], a[1], b[0], b[1])) 
@@ -193,7 +195,7 @@ class GridGraph(object):
                 slice_boty = min(box.minY(leftx), box.minY(rightx))
 
             toppx = int(abs(maxy - slice_topy)/self.img_res)
-            downpx = min(int(abs(maxy - slice_boty)/self.img_res), imgheight - 1)
+            downpx = min(int(abs(maxy - slice_boty)/self.img_res), self.imgheight - 1)
 
             for row in xrange(toppx, downpx + 1):
                 p = self.occ_grid[row,col]/255.0
@@ -204,8 +206,8 @@ class GridGraph(object):
                 elif p > 0.50: p = 1
 
                 w = importance[(row,col)]
-                # prob_free = prob_free*math.pow(p, w)
-                prob_free = prob_free*p
+                prob_free = prob_free*math.pow(p, w)
+                # prob_free = prob_free*p
 
         # Assign the following states to the edge:
         # 0:unblocked, 1:blocked, -1:unknown
@@ -304,7 +306,6 @@ class GridGraph(object):
 
     def sample_points(self, n):
         (minx, maxx, miny, maxy) = self.bounds
-        (imgheight, imgwidth) = self.occ_grid.shape
 
         pos = dict()
         i = 0
@@ -322,9 +323,9 @@ class GridGraph(object):
             # Calculate which pixels need to be checked, these pixels have to be included
             # (0,0) is in top left of image
             leftpx = int(abs(left - minx)/self.img_res)
-            rightpx = min(int(abs(right - minx)/self.img_res), imgwidth - 1)
+            rightpx = min(int(abs(right - minx)/self.img_res), self.imgwidth - 1)
             toppx = int(abs(maxy - up)/self.img_res)
-            downpx = min(int(abs(maxy - down)/self.img_res), imgheight - 1)
+            downpx = min(int(abs(maxy - down)/self.img_res), self.imgheight - 1)
 
             # do a quick, dirty check for a good sample
             # aka as soon as a pixel is too dark don't put down the sample
@@ -360,11 +361,10 @@ class GridGraph(object):
 
     def calc_bounding_coord(self):
         # returns min and max of x and y respectively
-        (imgheight, imgwidth) = self.occ_grid.shape
         (ox, oy, ot) = self.origin
 
-        width = imgwidth*self.img_res
-        height = imgheight*self.img_res
+        width = self.imgwidth*self.img_res
+        height = self.imgheight*self.img_res
 
         minx = round(ox, 2)
         maxx = round(width + ox, 2)
@@ -372,6 +372,40 @@ class GridGraph(object):
         maxy = round(height + oy, 2)
 
         return [minx, maxx, miny, maxy]
+
+class LiveGridGraph(GridGraph):
+    # child class of GridGraph
+    # for capturing info from a live \map feed instead of image
+    def __init__(self, occ_grid, refmap, robot_width):
+        logger.info('Capturing map info from live feed')
+        """
+        - take in map topic from cartographer, get all of the needed parameters
+          occ_grid - OccupancyGrid type msg from ROS
+          refmap - reference GridGraph obj
+
+        Attributes:
+        robot_width
+        occ_grid (cv2 img object)
+        origin - [x, y, z] Coordinates of lower left corner of occ_grid in reference
+                to origin of map (location where mapping module was started)
+        img_res - resolution of occ_grid
+        bounds - [minx maxx miny maxy] of occ_grid
+        graph - navigation graph
+        """
+        self.BLOCKED = 1
+        self.UNBLOCKED = 0
+        self.UNKNOWN = -1
+
+        self.robot_width = robot_width
+        self.occ_grid = occ_grid.data
+        self.origin = [occ_grid.info.origin.position.x,
+                       occ_grid.info.origin.position.y,
+                       occ_grid.info.origin.position.z]
+        self.img_res = occ_grid.info.origin.resolution
+        self.imgwidth = occ_grid.info.width
+        self.imgheight = occ_grid.info.height
+        self.bounds = self.calc_bounding_coord()
+        self.graph = refmap.graph.copy()
 
 
 class BoundingBox(object):
