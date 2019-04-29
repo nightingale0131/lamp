@@ -1,20 +1,27 @@
 #!/usr/bin/env python
 __author__ = 'fiorellasibona' # repurposed code
-import rospy
+import rospy, rospkg 
 import math
+import os
+import networkx as nx
 
 import actionlib
+from nav_seq import MoveBaseSeq
+from policy.gridgraph import GridGraph
+from policy import utility as util
+from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
-from nav_msgs.msg import OccupancyGrid
 
 class MoveBaseSeq():
-    def __init__(self, path):
+    def __init__(self, path, gridgraph):
         # seq - list of coordinates [(x1, y1, z1), (x2, y2, z1)]
+        # gridgraph - base grid graph map needed for graph edges
         rospy.init_node('move_base_seq')
         points = list(path)
+        self.base_map = gridgraph;
         yaweulerangles_seq = self.calc_headings(points)
         rospy.loginfo('Angle seq: ')
         for angle in yaweulerangles_seq:
@@ -112,6 +119,24 @@ class MoveBaseSeq():
             " to Action server")
         self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb)
 
+    def set_new_path(self, path, at_first_node = True):
+        points = list(path)
+        yaweulerangles_seq = self.calc_headings(points)
+        if not at_first_node:
+            yaweulerangles_seq[0] = yaweulerangles_seq[1] # can change if this causes problems
+        rospy.loginfo('Angle seq: ')
+        for angle in yaweulerangles_seq:
+            rospy.loginfo(angle)
+        quat_seq = list()
+        self.pose_seq = list() # list of poses, combo of Point and Quaternion
+        self.goal_cnt = 1 if at_first_node else 0
+        for yawangle in yaweulerangles_seq:
+            quat_seq.append(Quaternion(*(quaternion_from_euler(0, 0, yawangle))))
+        n = 0
+        for point in points:
+            self.pose_seq.append(Pose(Point(*point), quat_seq[n]))
+            n += 1
+
     def calc_headings(self, path):
         # calc goal heading at each waypoint of path
         # for now just use angle of line segment
@@ -145,11 +170,48 @@ class MoveBaseSeq():
         width = data.info.width
         occ_grid = data.data
         rospy.loginfo("Width of occ grid: {}".format(width))
-        # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
-
+        LiveMap = LiveGridGraph(data, base_map, robot_width=0.5)
+        path_blocked = False;
+        for i in range(goal_cnt, len(path)):
+            (u,v) = path[i]
+            LiveMap._edge_check((u,v))
+            if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
+                path_blocked = True;
+        if path_blocked:
+            LiveMap._collision_check
+            start = path[goal_cnt]
+            goal = path[-1]
+            came_from, cost_so_far = util.a_star_search(LiveMap,start,goal)
+            path = util.reconstruct_path(came_from, start, goal)
+            self.set_new_path(path, at_first_node = False)
+            self.movebase_client()
+            # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
 
 if __name__ == '__main__':
-    path = [(0.0, 0.0, 0.0), (-2.0, -1.0, 0.0), (-4.0, -2.0, 0.0)]
+    # specify start and goal
+    start = (0.0, 0.0)
+    goal = (-8.0, 4.5)
+    # load map and determine graph
+    rospack = rospkg.RosPack()
+    pkgdir = rospack.get_path('policy')
+    mapdir = pkgdir + '/maps/'
+    pgm0 = mapdir + 'simple2.pgm'
+    yaml0 = mapdir + 'simple2.yaml'
+
+    map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
+    print(nx.info(map0.graph))
+    # nx.write_adjlist(map0.graph, pkgdir + '/src/map0.adjlist', delimiter=',')
+
+    # run a* on custom map object
+    came_from, cost_so_far = util.a_star_search(map0, start, goal)
+    path = util.reconstruct_path(came_from, start, goal)
+    # add z value to path tuples
+    for i in range(len(path)):
+        (x,y) = path[i]
+        path[i] = (x,y,0.0)
+        print(path[i])
+
+    # give path to MoveBaseSeq
     try:
         MoveBaseSeq(path)
     except rospy.ROSInterruptException:
