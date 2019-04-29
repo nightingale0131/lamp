@@ -8,6 +8,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from nav_msgs.msg import OccupancyGrid
 
 class MoveBaseSeq():
     def __init__(self, path):
@@ -33,6 +34,7 @@ class MoveBaseSeq():
             n += 1
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+        self.map_subscriber = rospy.Subscriber("map", OccupancyGrid, self.map_callback)
 
         # connect to move_base node
         rospy.loginfo("Waiting for move_base action server...")
@@ -137,6 +139,13 @@ class MoveBaseSeq():
         euler = euler_from_quaternion(quaternion)
 
         return str(pose.position) + "[" + str(euler) + "]"
+
+    def map_callback(self, data):
+        # constantly checking if edge is blocked
+        width = data.info.width
+        occ_grid = data.data
+        rospy.loginfo("Width of occ grid: {}".format(width))
+        # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
 
 
 if __name__ == '__main__':

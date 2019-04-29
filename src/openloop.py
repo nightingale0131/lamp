@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import rospy, rospkg
+from nav_msgs.msg import OccupancyGrid
 import os
 import math
 import networkx as nx
