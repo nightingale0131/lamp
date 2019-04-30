@@ -152,6 +152,7 @@ class GridGraph(object):
         pxbounds = [leftpx, rightpx, toppx, downpx]
 
         # If needed, calculate the importance of each pixel in bounding box
+        """
         try:
             importance = self.graph.edge[a][b]['importance']
             # ^ dictionary: {(row,col): value}
@@ -161,6 +162,12 @@ class GridGraph(object):
                     .format(box.left, box.right, box.top, box.bottom))
             importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
             self.graph.edge[a][b]['importance'] = importance
+        """
+        logger.info('\tCalculating blur')
+        logger.debug('Box corners: {}, {}, {}, {}'
+                .format(box.left, box.right, box.top, box.bottom))
+        importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
+
 
         # Do probability check to see state of edge, assign to edge attribute
         # pixel mapping: 0 - unknown, otherwise x/255 to get probability of pixel being
@@ -198,9 +205,9 @@ class GridGraph(object):
                     k += 1
                 elif p > 0.50: p = 1
 
-                # w = importance[(row,col)]
-                # prob_free = prob_free*math.pow(p, w)
-                prob_free = prob_free*p
+                w = importance[(row,col)]
+                prob_free = prob_free*math.pow(p, w)
+                # prob_free = prob_free*p
 
         # Assign the following states to the edge:
         # 0:unblocked, 1:blocked, -1:unknown
@@ -407,7 +414,8 @@ def list_to_matrix(raw_data, width, height):
     matrix = np.empty((height, width))
     for row in xrange(height):
         for col in xrange(width):
-            matrix[row,col] = raw_data[row*width + col]
+            # change to match value in pgm files
+            matrix[row,col] = (100 - raw_data[row*width + col])*2.54
 
     return matrix
 
