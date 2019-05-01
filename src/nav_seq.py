@@ -121,8 +121,8 @@ class MoveBaseSeq():
     def set_new_path(self, path, at_first_node = True):
         points = list(path)
         yaweulerangles_seq = self.calc_headings(points)
-        if not at_first_node:
-            yaweulerangles_seq[0] = yaweulerangles_seq[1] # can change if this causes problems
+        # if not at_first_node:
+            # yaweulerangles_seq[0] = yaweulerangles_seq[1] # can change if this causes problems
         rospy.loginfo('Angle seq: ')
         for angle in yaweulerangles_seq:
             rospy.loginfo(angle)
@@ -152,6 +152,9 @@ class MoveBaseSeq():
             yaweulerangles_seq.append(heading)
             i += 1
 
+        if len(path) > 1:
+            yaweulerangles_seq[0] = yaweulerangles_seq[1] # can change if this causes problems
+
         return yaweulerangles_seq
 
     def print_pose_in_euler(self, pose):
@@ -171,12 +174,21 @@ class MoveBaseSeq():
         rospy.loginfo("Width of occ grid: {}".format(width))
         LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
         path_blocked = False;
+        u = (self.pose_seq[self.goal_cnt-1].position.x, self.pose_seq[self.goal_cnt-1].position.y)
+        v = (self.pose_seq[self.goal_cnt].position.x, self.pose_seq[self.goal_cnt].position.y)
+        LiveMap._edge_check((u,v))
+        if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
+            path_blocked = True;
+            rospy.loginfo("Path is blocked!")
+        
+        """
         for i in range(max(1, self.goal_cnt), len(self.pose_seq)):
             u = (self.pose_seq[i-1].position.x, self.pose_seq[i-1].position.y)
             v = (self.pose_seq[i].position.x, self.pose_seq[i].position.y)
             LiveMap._edge_check((u,v))
             if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
                 path_blocked = True;
+        """
         if path_blocked:
             LiveMap._collision_check
             start = (self.pose_seq[self.goal_cnt].position.x, self.pose_seq[self.goal_cnt].position.y)
