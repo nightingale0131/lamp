@@ -19,13 +19,14 @@ class MoveBaseSeq():
         # seq - list of coordinates [(x1, y1, z1), (x2, y2, z1)]
         # gridgraph - base grid graph map needed for graph edges
         rospy.init_node('move_base_seq')
-        points = list(path)
+        # points = list(path)
         self.base_map = gridgraph;
+        self.path = path
+        """
         yaweulerangles_seq = self.calc_headings(points)
         rospy.loginfo('Angle seq: ')
         for angle in yaweulerangles_seq:
             rospy.loginfo(angle)
-        raw_input('Press enter to continue')
 
         quat_seq = list()
         self.pose_seq = list() # list of poses, combo of Point and Quaternion
@@ -38,6 +39,9 @@ class MoveBaseSeq():
         for point in points:
             self.pose_seq.append(Pose(Point(*point), quat_seq[n]))
             n += 1
+        """
+        self.set_new_path(path, self.base_map) # sets pose_seq and goal_cnt
+        raw_input('Press enter to continue')
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.map_subscriber = rospy.Subscriber("map", OccupancyGrid, self.map_callback)
@@ -118,8 +122,14 @@ class MoveBaseSeq():
             " to Action server")
         self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb)
 
-    def set_new_path(self, path, at_first_node = True):
-        points = list(path)
+    def set_new_path(self, path, gridgraph, at_first_node = True):
+        points = list() 
+        for i in path:
+            (x,y) = gridgraph.pos(i)
+            new_point = (x,y,0.0)
+            points.append(new_point)
+            print(new_point)
+
         yaweulerangles_seq = self.calc_headings(points)
         # if not at_first_node:
             # yaweulerangles_seq[0] = yaweulerangles_seq[1] # can change if this causes problems
@@ -169,13 +179,10 @@ class MoveBaseSeq():
 
     def map_callback(self, data):
         # constantly checking if edge is blocked
-        width = data.info.width
-        occ_grid = data.data
-        rospy.loginfo("Width of occ grid: {}".format(width))
         LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
         path_blocked = False;
-        u = (self.pose_seq[self.goal_cnt-1].position.x, self.pose_seq[self.goal_cnt-1].position.y)
-        v = (self.pose_seq[self.goal_cnt].position.x, self.pose_seq[self.goal_cnt].position.y)
+        u = self.path[self.goal_cnt-1]
+        v = self.path[self.goal_cnt]
         LiveMap._edge_check((u,v))
         if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
             path_blocked = True;
@@ -191,16 +198,19 @@ class MoveBaseSeq():
         """
         if path_blocked:
             LiveMap._collision_check
-            start = (self.pose_seq[self.goal_cnt].position.x, self.pose_seq[self.goal_cnt].position.y)
-            goal = (self.pose_seq[-1].position.x, self.pose_seq[-1].position.y)
-            came_from, cost_so_far = util.a_star_search(LiveMap,start,goal)
-            path = util.reconstruct_path(came_from, start, goal)
+            start = self.path[self.goal_cnt - 1]
+            # start = (self.pose_seq[self.goal_cnt].position.x, self.pose_seq[self.goal_cnt].position.y)
+            # goal = (self.pose_seq[-1].position.x, self.pose_seq[-1].position.y)
+            came_from, cost_so_far = util.a_star_search(LiveMap, start,LiveMap.goal)
+            self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
+            """
             # add z value to path tuples
             for i in range(len(path)):
-                (x,y) = path[i]
+                (x,y) = LiveMap.pos(path[i])
                 path[i] = (x,y,0.0)
                 #print(path[i])    
-            self.set_new_path(path, at_first_node = False)
+            """
+            self.set_new_path(self.path, LiveMap, at_first_node = False)
             self.set_and_send_next_goal()
             # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
 
@@ -220,13 +230,15 @@ if __name__ == '__main__':
     # nx.write_adjlist(map0.graph, pkgdir + '/src/map0.adjlist', delimiter=',')
 
     # run a* on custom map object
-    came_from, cost_so_far = util.a_star_search(map0, start, goal)
-    path = util.reconstruct_path(came_from, start, goal)
+    came_from, cost_so_far = util.a_star_search(map0, map0.start, map0.goal)
+    path = util.reconstruct_path(came_from, map0.start, map0.goal)
+    """
     # add z value to path tuples
     for i in range(len(path)):
-        (x,y) = path[i]
+        (x,y) = map0.pos(path[i])
         path[i] = (x,y,0.0)
         print(path[i])
+    """
 
     # give path to MoveBaseSeq
     try:

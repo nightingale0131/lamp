@@ -54,6 +54,8 @@ class GridGraph(object):
             logger.info('Built graph')
         else:
             self.graph = refmap.graph.copy() 
+            self.start = refmap.start
+            self.goal = refmap.goal
             logger.info('Imported graph')
             self._align(refmap.occ_grid)
             self.origin = refmap.origin
@@ -95,19 +97,26 @@ class GridGraph(object):
         # return iterator of all neighbors of v
         return self.graph.neighbors(v)
 
+    def pos(self, v):
+        return self.graph.node[v]['pos']
+
+    def dist(self, u, v):
+        (x1, y1) = self.graph.node[u]['pos']
+        (x2, y2) = self.graph.node[v]['pos']
+
+        return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
+
     def weight(self, u, v, attr=None):
         # assuming this will be used with networkx dijkstra
         # u,v - node label, should be in (x,y) format
         # attr - dictionary of edge attributes, this is not used, but these 3 arguments
         #        are needed to satisfy networkx dijkstra function requirements
         # considers unknowns as unblocked edges
-        (x1, y1) = u
-        (x2, y2) = v
         # need to check edge state 
         if self.graph[u][v]['state'] == self.BLOCKED:
             return float('inf')
         else:
-            return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
+            return self.dist(u,v)
 
     def known_weight(self, u, v, attr=None):
         # assuming this will be used with networkx dijkstra
@@ -123,10 +132,10 @@ class GridGraph(object):
         # (a,b) = edge # comment this for random graph
         (u,v) = edge
         # Below is for random graph
-        a = u
-        b = v
-        # a = self.graph.node[u]['pos']
-        # b = self.graph.node[v]['pos']
+        # a = u
+        # b = v
+        a = self.graph.node[u]['pos']
+        b = self.graph.node[v]['pos']
 
         # TODO: if edge is outside of map bounds, return as unknown
 
@@ -216,7 +225,7 @@ class GridGraph(object):
                 .format(prob_free, prob_unknown))
 
         self.graph[u][v]['prob'] = prob_free
-        self.graph[u][v]['dist'] = utility.heuristic(u,v)
+        self.graph[u][v]['dist'] = self.dist(u,v)
         self.graph[u][v]['weight'] = self.graph[u][v]['dist']*prob_free
 
         # Thresholding of edges to states
@@ -298,7 +307,9 @@ class GridGraph(object):
 
             pos.update({n: start, n+1: goal})
             graph = nx.random_geometric_graph(n+2, res, pos=pos)
-            graph = nx.relabel_nodes(graph, pos)
+            self.start = n
+            self.goal = n+1
+            # graph = nx.relabel_nodes(graph, pos)
 
         # TODO: modify graph to select better edges
 
