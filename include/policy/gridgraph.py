@@ -417,6 +417,8 @@ class LiveGridGraph(GridGraph):
         self.imgheight = occ_grid.info.height
         self.bounds = self.calc_bounding_coord()
         self.graph = refmap.graph.copy()
+        self.start = refmap.start
+        self.goal = refmap.goal
 
         # convert occ_grid.data into numpy matrix so then occ_grid[row, col] will work
         self.occ_grid = list_to_matrix(occ_grid.data, self.imgwidth, self.imgheight)
@@ -427,7 +429,7 @@ def list_to_matrix(raw_data, width, height):
         for col in xrange(width):
             # change to match value in pgm files
             data = raw_data[row*width + col]
-            if data < 80 : data = 0 
+            if data < 70 : data = 0 
             matrix[row,col] = (100 - data)*2.54
 
     return matrix
