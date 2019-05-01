@@ -11,7 +11,7 @@ from policy import utility as util
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
-from geometry_msgs.msg import Pose, Point, Quaternion
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 class MoveBaseSeq():
@@ -22,29 +22,12 @@ class MoveBaseSeq():
         # points = list(path)
         self.base_map = gridgraph;
         self.path = path
-        """
-        yaweulerangles_seq = self.calc_headings(points)
-        rospy.loginfo('Angle seq: ')
-        for angle in yaweulerangles_seq:
-            rospy.loginfo(angle)
-
-        quat_seq = list()
-        self.pose_seq = list() # list of poses, combo of Point and Quaternion
-        self.goal_cnt = 1 # assume first pose is current pose
-
-        for yawangle in yaweulerangles_seq:
-            quat_seq.append(Quaternion(*(quaternion_from_euler(0, 0, yawangle))))
-
-        n = 0
-        for point in points:
-            self.pose_seq.append(Pose(Point(*point), quat_seq[n]))
-            n += 1
-        """
-        self.set_new_path(path, self.base_map) # sets pose_seq and goal_cnt
-        raw_input('Press enter to continue')
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.map_subscriber = rospy.Subscriber("map", OccupancyGrid, self.map_callback)
+        self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
+
+        self.set_new_path(path, self.base_map) # sets pose_seq and goal_cnt
 
         # connect to move_base node
         rospy.loginfo("Waiting for move_base action server...")
@@ -109,7 +92,6 @@ class MoveBaseSeq():
 
     def movebase_client(self):
         self.set_and_send_next_goal()
-        # enter part to cancel goals if obstacle detected, or you can specify timeout
         rospy.spin()
 
     def set_and_send_next_goal(self):
@@ -146,6 +128,12 @@ class MoveBaseSeq():
             self.pose_seq.append(Pose(Point(*point), quat_seq[n]))
             n += 1
 
+    def conv_to_PoseArray(self, poseArray):
+        poses = PoseArray()
+        poses.header.frame_id = 'map'
+        poses.poses = [pose for pose in poseArray]
+        return poses
+
     def calc_headings(self, path):
         # calc goal heading at each waypoint of path
         # for now just use angle of line segment
@@ -180,14 +168,18 @@ class MoveBaseSeq():
     def map_callback(self, data):
         # constantly checking if edge is blocked
         LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
+        only_once = True
+        if only_once:
+            # nx.write_adjlist(map0.graph, pkgdir + '/src/liveMap.adjlist')
+            only_once = False
         path_blocked = False;
-        u = self.path[self.goal_cnt-1]
-        v = self.path[self.goal_cnt]
+        u = self.path[max(0,self.goal_cnt-1)]
+        v = self.path[max(1,self.goal_cnt)]
         LiveMap._edge_check((u,v))
         if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
             path_blocked = True;
             rospy.loginfo("Path is blocked!")
-        
+
         """
         for i in range(max(1, self.goal_cnt), len(self.pose_seq)):
             u = (self.pose_seq[i-1].position.x, self.pose_seq[i-1].position.y)
@@ -198,21 +190,16 @@ class MoveBaseSeq():
         """
         if path_blocked:
             LiveMap._collision_check
-            start = self.path[self.goal_cnt - 1]
+            start = self.path[max(0,self.goal_cnt - 1)]
             # start = (self.pose_seq[self.goal_cnt].position.x, self.pose_seq[self.goal_cnt].position.y)
             # goal = (self.pose_seq[-1].position.x, self.pose_seq[-1].position.y)
-            came_from, cost_so_far = util.a_star_search(LiveMap, start,LiveMap.goal)
+            came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
             self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
-            """
-            # add z value to path tuples
-            for i in range(len(path)):
-                (x,y) = LiveMap.pos(path[i])
-                path[i] = (x,y,0.0)
-                #print(path[i])    
-            """
             self.set_new_path(self.path, LiveMap, at_first_node = False)
             self.set_and_send_next_goal()
             # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
+
+        self.posearray_publisher.publish(self.conv_to_PoseArray(self.pose_seq))
 
 if __name__ == '__main__':
     # specify start and goal
@@ -227,18 +214,11 @@ if __name__ == '__main__':
 
     map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
     print(nx.info(map0.graph))
-    # nx.write_adjlist(map0.graph, pkgdir + '/src/map0.adjlist', delimiter=',')
+    # nx.write_adjlist(map0.graph, pkgdir + '/src/map0.adjlist')
 
     # run a* on custom map object
     came_from, cost_so_far = util.a_star_search(map0, map0.start, map0.goal)
     path = util.reconstruct_path(came_from, map0.start, map0.goal)
-    """
-    # add z value to path tuples
-    for i in range(len(path)):
-        (x,y) = map0.pos(path[i])
-        path[i] = (x,y,0.0)
-        print(path[i])
-    """
 
     # give path to MoveBaseSeq
     try:
