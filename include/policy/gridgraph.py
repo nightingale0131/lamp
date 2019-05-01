@@ -198,7 +198,7 @@ class GridGraph(object):
             downpx = min(int(abs(maxy - slice_boty)/self.img_res), self.imgheight - 1)
 
             for row in xrange(toppx, downpx + 1):
-                p = self.occ_grid[row,col]/255.0
+                p = self.occ_grid[row,col]/254.0
                 n += 1
                 if p == 0:
                     p = 1
@@ -415,7 +415,9 @@ def list_to_matrix(raw_data, width, height):
     for row in xrange(height):
         for col in xrange(width):
             # change to match value in pgm files
-            matrix[row,col] = (100 - raw_data[row*width + col])*2.54
+            data = raw_data[row*width + col]
+            if data < 80 : data = 0 
+            matrix[row,col] = (100 - data)*2.54
 
     return matrix
 
