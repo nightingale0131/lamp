@@ -115,9 +115,10 @@ if __name__ == '__main__':
     logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.INFO)
 
     # build base graph on initial map 
-    pgm = testpath + '/maps/test1_1.pgm'
-    yaml = testpath + '/maps/test1_1.yaml'
-    nav_graph = GridGraph(pgm, yaml, (-8, 4.5), graph_res=1.5, robot_width=1.0)
+    pgm = testpath + '/maps/simple1.pgm'
+    yaml = testpath + '/maps/simple1.yaml'
+    nav_graph = GridGraph(pgm, yaml, (-8, 4.5), graph_res=1.5, robot_width=0.5)
+    cv2.imwrite(testpath + 'cv2_img.jpg', nav_graph.occ_grid)
     print(nx.info(nav_graph.graph))
     nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
 
@@ -125,11 +126,12 @@ if __name__ == '__main__':
     show_init_graph(nav_graph)
 
     # save new occ grid as GridGraph with refmap graph overlaid on top 
-    otherpgm = testpath + '/maps/test1_3.pgm'
-    otheryaml = testpath + '/maps/test1_3.yaml'
-    other = GridGraph(otherpgm, otheryaml, (-8, 4.5), refmap=nav_graph, robot_width=1.0)
+    otherpgm = testpath + '/maps/problem.pgm'
+    otheryaml = testpath + '/maps/problem.yaml'
+    other = GridGraph(otherpgm, otheryaml, (-8, 4.5), refmap=nav_graph, robot_width=0.5)
     show_comparison(nav_graph, other)
 
+    """
     # calculate all pairs shortest path
     first = nx.floyd_warshall(nav_graph.graph)
     second = nx.floyd_warshall(other.graph)
@@ -149,6 +151,7 @@ if __name__ == '__main__':
         if i < -0.5: count +=1
 
     print("num of diff < -0.5: {}".format(count))
+    """
 
     # test weights
     # check_weights(nav_graph)
