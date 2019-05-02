@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 __author__ = 'fiorellasibona' # repurposed code
+import logging
+logger = logging.getLogger(__name__)
+
 import rospy, rospkg 
 import math
 import os
 import networkx as nx
+import cv2
 
 import actionlib
 from policy.gridgraph import GridGraph, LiveGridGraph
@@ -16,12 +20,12 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 class MoveBaseSeq():
     def __init__(self, path, gridgraph):
-        # seq - list of coordinates [(x1, y1, z1), (x2, y2, z1)]
+        # seq - list of vertices [v1, v2, ...]
         # gridgraph - base grid graph map needed for graph edges
         rospy.init_node('move_base_seq')
-        # points = list(path)
         self.base_map = gridgraph;
         self.path = path
+        self.path_blocked = False
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.map_subscriber = rospy.Subscriber("map", OccupancyGrid, self.map_callback)
@@ -167,37 +171,39 @@ class MoveBaseSeq():
 
     def map_callback(self, data):
         # constantly checking if edge is blocked
-        LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
-        only_once = True
-        if only_once:
-            # nx.write_adjlist(map0.graph, pkgdir + '/src/liveMap.adjlist')
-            only_once = False
-        path_blocked = False;
-        u = self.path[max(0,self.goal_cnt-1)]
-        v = self.path[max(1,self.goal_cnt)]
-        LiveMap._edge_check((u,v))
-        if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
-            path_blocked = True;
-            rospy.loginfo("Path is blocked!")
+        if self.path_blocked == False:
+            LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
 
-        """
-        for i in range(max(1, self.goal_cnt), len(self.pose_seq)):
-            u = (self.pose_seq[i-1].position.x, self.pose_seq[i-1].position.y)
-            v = (self.pose_seq[i].position.x, self.pose_seq[i].position.y)
+            u = self.path[max(0,self.goal_cnt-1)]
+            v = self.path[max(1,self.goal_cnt)]
             LiveMap._edge_check((u,v))
+            (x1,y1) = LiveMap.pos(u)
+            (x2,y2) = LiveMap.pos(v)
+            rospy.loginfo("Probability of edge ({:.3f},{:.3f}),({:.3f},{:.3f}): {:.3f}"
+                          .format(x1, y1, x2, y2, LiveMap.graph[u][v]['prob']))
             if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
-                path_blocked = True;
-        """
-        if path_blocked:
-            LiveMap._collision_check
-            start = self.path[max(0,self.goal_cnt - 1)]
-            # start = (self.pose_seq[self.goal_cnt].position.x, self.pose_seq[self.goal_cnt].position.y)
-            # goal = (self.pose_seq[-1].position.x, self.pose_seq[-1].position.y)
-            came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
-            self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
-            self.set_new_path(self.path, LiveMap, at_first_node = False)
-            self.set_and_send_next_goal()
-            # self.client.cancel_all_goals() # if edge is blocked, stop pursuing path
+                self.path_blocked = True;
+                rospy.loginfo("Path is blocked!")
+                self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                # ^ causes client to flip between sending new goal and cancelling
+
+            """
+            for i in range(max(1, self.goal_cnt), len(self.pose_seq)):
+                u = (self.pose_seq[i-1].position.x, self.pose_seq[i-1].position.y)
+                v = (self.pose_seq[i].position.x, self.pose_seq[i].position.y)
+                LiveMap._edge_check((u,v))
+                if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
+                    path_blocked = True;
+            """
+            if self.path_blocked:
+                cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
+                LiveMap._collision_check()
+                start = self.path[max(0,self.goal_cnt - 1)]
+                came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
+                self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
+                self.set_new_path(self.path, LiveMap, at_first_node = False)
+                self.set_and_send_next_goal()
+                self.path_blocked = False
 
         self.posearray_publisher.publish(self.conv_to_PoseArray(self.pose_seq))
 
@@ -205,12 +211,15 @@ if __name__ == '__main__':
     # specify start and goal
     start = (0.0, 0.0)
     goal = (-8.0, 4.5)
+    # goal = (-6.0, 3.7)
     # load map and determine graph
     rospack = rospkg.RosPack()
     pkgdir = rospack.get_path('policy')
     mapdir = pkgdir + '/maps/'
     pgm0 = mapdir + 'simple1.pgm'
     yaml0 = mapdir + 'simple1.yaml'
+
+    logging.basicConfig(filename = pkgdir + '/debug.log', filemode='w', level=logging.INFO)
 
     map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
     print(nx.info(map0.graph))

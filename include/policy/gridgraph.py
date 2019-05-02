@@ -57,9 +57,9 @@ class GridGraph(object):
             self.start = refmap.start
             self.goal = refmap.goal
             logger.info('Imported graph')
-            self._align(refmap.occ_grid)
-            self.origin = refmap.origin
-            logger.debug('Modified origin: {}'.format(self.origin))
+            # self._align(refmap.occ_grid)
+            # self.origin = refmap.origin
+            # logger.debug('Modified origin: {}'.format(self.origin))
             (self.imgheight, self.imgwidth) = self.occ_grid.shape
             self.bounds = self.calc_bounding_coord()
             self._collision_check()
@@ -171,12 +171,11 @@ class GridGraph(object):
                     .format(box.left, box.right, box.top, box.bottom))
             importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
             self.graph.edge[a][b]['importance'] = importance
-        """
+        """        
         logger.info('\tCalculating blur')
         logger.debug('Box corners: {}, {}, {}, {}'
                 .format(box.left, box.right, box.top, box.bottom))
         importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
-
 
         # Do probability check to see state of edge, assign to edge attribute
         # pixel mapping: 0 - unknown, otherwise x/255 to get probability of pixel being
@@ -428,7 +427,7 @@ def list_to_matrix(raw_data, width, height):
     for row in xrange(height):
         for col in xrange(width):
             # change to match value in pgm files
-            data = raw_data[row*width + col]
+            data = raw_data[(height - row - 1)*width + col]
             if data < 70 : data = 0 
             matrix[row,col] = (100 - data)*2.54
 
