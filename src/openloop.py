@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 __author__ = 'fiorellasibona' # repurposed code
 import logging
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger(__name__) 
 import rospy, rospkg 
-import math
+import math 
 import os
 import networkx as nx
 import cv2
@@ -234,3 +233,6 @@ if __name__ == '__main__':
         MoveBaseSeq(path, map0)
     except rospy.ROSInterruptException:
         rospy.loginfo("Navigation finished.")
+
+    # save pgm/yaml file of map
+    os.system("rosrun map_server map_saver -f " + mapdir + "/test")
