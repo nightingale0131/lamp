@@ -187,14 +187,6 @@ class MoveBaseSeq():
                     break
                 # ^ causes client to flip between sending new goal and cancelling
 
-            """
-            for i in range(max(1, self.goal_cnt), len(self.pose_seq)):
-                u = (self.pose_seq[i-1].position.x, self.pose_seq[i-1].position.y)
-                v = (self.pose_seq[i].position.x, self.pose_seq[i].position.y)
-                LiveMap._edge_check((u,v))
-                if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
-                    path_blocked = True;
-            """
             if self.path_blocked:
                 cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
                 LiveMap._collision_check()
