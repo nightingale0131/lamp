@@ -172,18 +172,19 @@ class MoveBaseSeq():
         # constantly checking if edge is blocked
         if self.path_blocked == False:
             LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
-
-            u = self.path[max(0,self.goal_cnt-1)]
-            v = self.path[max(1,self.goal_cnt)]
-            LiveMap._edge_check((u,v))
-            (x1,y1) = LiveMap.pos(u)
-            (x2,y2) = LiveMap.pos(v)
-            rospy.loginfo("Probability of edge ({:.3f},{:.3f}),({:.3f},{:.3f}): {:.3f}"
-                          .format(x1, y1, x2, y2, LiveMap.graph[u][v]['prob']))
-            if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
-                self.path_blocked = True;
-                rospy.loginfo("Path is blocked!")
-                self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+            for i in range(max(1, self.goal_cnt), len(self.path)):
+                u = self.path[max(0,i-1)]
+                v = self.path[max(1,i)]
+                LiveMap._edge_check((u,v))
+                (x1,y1) = LiveMap.pos(u)
+                (x2,y2) = LiveMap.pos(v)
+                rospy.loginfo("Probability of edge ({:.3f},{:.3f}),({:.3f},{:.3f}): {:.3f}"
+                              .format(x1, y1, x2, y2, LiveMap.graph[u][v]['prob']))
+                if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
+                    self.path_blocked = True;
+                    rospy.loginfo("Path is blocked!")
+                    self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                    break
                 # ^ causes client to flip between sending new goal and cancelling
 
             """
