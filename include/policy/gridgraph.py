@@ -421,6 +421,30 @@ class LiveGridGraph(GridGraph):
 
         # convert occ_grid.data into numpy matrix so then occ_grid[row, col] will work
         self.occ_grid = list_to_matrix(occ_grid.data, self.imgwidth, self.imgheight)
+        self.resize_map(refmap)
+
+    def resize_map(self, refmap):
+        #assuming no rotational offset between maps
+        # assuming same resolution
+        new_y = refmap.imgheight #cells
+        new_x = refmap.imgwidth #cells
+        new_occ = np.empty((new_y,new_x))
+        delta_x = refmap.origin[0] - self.origin[0] #meters
+        delta_y = refmap.origin[1] - self.origin[1] #meters
+        delta_x = delta_x/self.img_res #cells
+        delta_y = delta_y/self.img_res #cells
+        for row in xrange(new_y):
+            for col in xrange(new_x):
+                if -delta_x <= col < self.imgwidth-delta_x and -delta_y <= row < self.imgheight-delta_y:
+                    new_occ[row,col] = self.occ_grid[row+delta_y,col+delta_x]
+                else:
+                    new_occ[row,col] = 0 #fill extra cells with unknown
+        self.imgheight = new_y
+        self.imgwidth = new_x
+        self.occ_grid = new_occ
+        self.origin = refmap.origin
+        self.bounds = self.calc_bounding_coord()
+        return
 
 def list_to_matrix(raw_data, width, height):
     matrix = np.empty((height, width))
