@@ -73,7 +73,7 @@ class MoveBaseSeq():
             # The goal received a cancel request after it started executing
             # and has since completed its execution (Terminal State)
             rospy.loginfo("Goal pose " + str(self.goal_cnt) + 
-                "received a cancel request after it started executing, finished execution!")
+                " received a cancel request after it started executing, finished execution!")
 
         if status == 3:
             # The goal was achieved successfully by the action server (Terminal State)
