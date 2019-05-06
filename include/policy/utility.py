@@ -82,7 +82,7 @@ def a_star_search(graph, start, goal):
 
         for next in graph.neighbours(current):
             new_cost = cost_so_far[current] + graph.weight(current, next)
-            if next not in cost_so_far or new_cost < cost_so_far[next]:
+            if (next not in cost_so_far or new_cost < cost_so_far[next]) and new_cost < 99999:
                 cost_so_far[next] = new_cost
                 priority = new_cost + graph.dist(goal, next)
                 frontier.put(next, priority)

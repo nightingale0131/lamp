@@ -192,7 +192,13 @@ class MoveBaseSeq():
                 LiveMap._collision_check()
                 start = self.path[max(0,self.goal_cnt - 1)]
                 came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
-                self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
+                try:
+                    self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
+                except KeyError:
+                    rospy.loginfo("Cannot go to goal! Stopping node.")
+                    rospy.signal_shutdown("Cannot go to goal! Stopping node.")
+                    return # path_blocked = True from now until shutdown
+
                 self.set_new_path(self.path, LiveMap, at_first_node = False)
                 self.set_and_send_next_goal()
                 self.path_blocked = False
