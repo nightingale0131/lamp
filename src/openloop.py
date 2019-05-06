@@ -14,7 +14,7 @@ from policy import utility as util
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
-from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 class MoveBaseSeq():
@@ -48,7 +48,24 @@ class MoveBaseSeq():
 
     def feedback_cb(self, feedback):
         # print current pose at each feedback
-        rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ": " + str(feedback))
+        # feedback is MoveBaseFeedback type msg
+        pose = feedback.base_position.pose
+        rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ":\n" +
+                      self.print_pose_in_euler(pose))
+        
+        # check if robot is close enough to send next goal
+        position = feedback.base_position.pose.position
+        (x,y) = (position.x, position.y)
+
+        curr_goal = self.pose_seq[self.goal_cnt].position
+        (gx,gy) = (curr_goal.x, curr_goal.y)
+
+        dist_to_curr_goal = util.euclidean_distance((x,y), (gx,gy))
+
+        if dist_to_curr_goal < 0.25 and (self.goal_cnt < len(self.pose_seq) - 1):
+            rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached")
+            self.goal_cnt += 1
+            self.set_and_send_next_goal()
 
     def done_cb(self, status, result):
         # refer to http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
@@ -60,11 +77,7 @@ class MoveBaseSeq():
 
         if status == 3:
             # The goal was achieved successfully by the action server (Terminal State)
-            rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached")
-            self.goal_cnt += 1
-            if self.goal_cnt < len(self.pose_seq):
-                self.set_and_send_next_goal()
-            else:
+            if self.goal_cnt == len(self.pose_seq) - 1:
                 rospy.loginfo("Final goal pose reached!")
                 rospy.signal_shutdown("Final goal pose reached!")
                 return
@@ -102,7 +115,7 @@ class MoveBaseSeq():
         next_goal.target_pose.header.frame_id = "map"
         next_goal.target_pose.header.stamp = rospy.Time.now()
         next_goal.target_pose.pose = self.pose_seq[self.goal_cnt]
-        rospy.loginfo("Sending goal pose " +
+        rospy.loginfo("Sending goal pose\n" +
                 self.print_pose_in_euler(self.pose_seq[self.goal_cnt]) + 
             " to Action server")
         self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb)
@@ -164,9 +177,14 @@ class MoveBaseSeq():
                 pose.orientation.y,
                 pose.orientation.z,
                 pose.orientation.w)
-        euler = euler_from_quaternion(quaternion)
+        (roll, pitch, yaw) = euler_from_quaternion(quaternion)
 
-        return str(pose.position) + "[" + str(euler) + "]"
+        msg = (" x: " + str(pose.position.x) + 
+               "\n y: " + str(pose.position.y) + 
+               "\n yaw:"+ str(math.degrees(yaw)))
+
+        # only print x,y and yaw
+        return msg
 
     def map_callback(self, data):
         # constantly checking if edge is blocked

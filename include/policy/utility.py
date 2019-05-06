@@ -56,7 +56,7 @@ def get_coordinates(string):
     coordinates = [int(c) for c in string.split()]
     return tuple(coordinates[:2])
 
-def heuristic(a, b):
+def euclidean_distance(a, b):
     """ redblobgames@gmail.com """
     (x1, y1) = a
     (x2, y2) = b
