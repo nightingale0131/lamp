@@ -768,8 +768,8 @@ def boxblurH(box, bounds, pxbounds, img_res, k, weight):
             " [topy:{:.3f} boty:{:.3f}, {:.3f} - {:.3f}]"
             .format(topy, boty, slice_leftx, slice_rightx))
 
-        # nspaces = slice_leftpx - leftpx
-        # print("".rjust(nspaces*5)),
+        # nspaces = slice_leftpx - leftpx # for debugging
+        # print("".rjust(nspaces*5)), # for debugging
 
         for col in xrange(slice_leftpx, slice_rightpx + 1):
             # finally have the pixel I want to calc weight for
