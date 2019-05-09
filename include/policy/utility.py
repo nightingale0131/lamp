@@ -56,7 +56,7 @@ def get_coordinates(string):
     coordinates = [int(c) for c in string.split()]
     return tuple(coordinates[:2])
 
-def heuristic(a, b):
+def euclidean_distance(a, b):
     """ redblobgames@gmail.com """
     (x1, y1) = a
     (x2, y2) = b
@@ -84,7 +84,7 @@ def a_star_search(graph, start, goal, check_edges=False):
             if check_edges:
                 graph._edge_check((current,next))
             new_cost = cost_so_far[current] + graph.weight(current, next)
-            if next not in cost_so_far or new_cost < cost_so_far[next]:
+            if (next not in cost_so_far or new_cost < cost_so_far[next]) and new_cost < 99999:
                 cost_so_far[next] = new_cost
                 priority = new_cost + graph.dist(goal, next)
                 frontier.put(next, priority)

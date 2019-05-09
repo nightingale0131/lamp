@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 __author__ = 'fiorellasibona' # repurposed code
 import logging
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger(__name__) 
 import rospy, rospkg 
-import math
+import math 
 import os
 import networkx as nx
 import cv2
@@ -15,7 +14,7 @@ from policy import utility as util
 from nav_msgs.msg import OccupancyGrid
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
-from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 class MoveBaseSeq():
@@ -49,8 +48,29 @@ class MoveBaseSeq():
 
     def feedback_cb(self, feedback):
         # print current pose at each feedback
+<<<<<<< HEAD
         if False:
             rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ": " + str(feedback))
+=======
+        # feedback is MoveBaseFeedback type msg
+        pose = feedback.base_position.pose
+        rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ":\n" +
+                      self.print_pose_in_euler(pose))
+        
+        # check if robot is close enough to send next goal
+        position = feedback.base_position.pose.position
+        (x,y) = (position.x, position.y)
+
+        curr_goal = self.pose_seq[self.goal_cnt].position
+        (gx,gy) = (curr_goal.x, curr_goal.y)
+
+        dist_to_curr_goal = util.euclidean_distance((x,y), (gx,gy))
+
+        if dist_to_curr_goal < 0.25 and (self.goal_cnt < len(self.pose_seq) - 1):
+            rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached")
+            self.goal_cnt += 1
+            self.set_and_send_next_goal()
+>>>>>>> 168e2ec7cf452e118c084fdfe620201a788e1867
 
     def done_cb(self, status, result):
         # refer to http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
@@ -58,15 +78,11 @@ class MoveBaseSeq():
             # The goal received a cancel request after it started executing
             # and has since completed its execution (Terminal State)
             rospy.loginfo("Goal pose " + str(self.goal_cnt) + 
-                "received a cancel request after it started executing, finished execution!")
+                " received a cancel request after it started executing, finished execution!")
 
         if status == 3:
             # The goal was achieved successfully by the action server (Terminal State)
-            rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached")
-            self.goal_cnt += 1
-            if self.goal_cnt < len(self.pose_seq):
-                self.set_and_send_next_goal()
-            else:
+            if self.goal_cnt == len(self.pose_seq) - 1:
                 rospy.loginfo("Final goal pose reached!")
                 rospy.signal_shutdown("Final goal pose reached!")
                 return
@@ -104,7 +120,7 @@ class MoveBaseSeq():
         next_goal.target_pose.header.frame_id = "map"
         next_goal.target_pose.header.stamp = rospy.Time.now()
         next_goal.target_pose.pose = self.pose_seq[self.goal_cnt]
-        rospy.loginfo("Sending goal pose " +
+        rospy.loginfo("Sending goal pose\n" +
                 self.print_pose_in_euler(self.pose_seq[self.goal_cnt]) + 
             " to Action server")
         self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb)
@@ -166,9 +182,14 @@ class MoveBaseSeq():
                 pose.orientation.y,
                 pose.orientation.z,
                 pose.orientation.w)
-        euler = euler_from_quaternion(quaternion)
+        (roll, pitch, yaw) = euler_from_quaternion(quaternion)
 
-        return str(pose.position) + "[" + str(euler) + "]"
+        msg = (" x: " + str(pose.position.x) + 
+               "\n y: " + str(pose.position.y) + 
+               "\n yaw:"+ str(math.degrees(yaw)))
+
+        # only print x,y and yaw
+        return msg
 
     def map_callback(self, data):
         # constantly checking if edge is blocked
@@ -190,20 +211,23 @@ class MoveBaseSeq():
                     break
                 # ^ causes client to flip between sending new goal and cancelling
 
-            """
-            for i in range(max(1, self.goal_cnt), len(self.pose_seq)):
-                u = (self.pose_seq[i-1].position.x, self.pose_seq[i-1].position.y)
-                v = (self.pose_seq[i].position.x, self.pose_seq[i].position.y)
-                LiveMap._edge_check((u,v))
-                if LiveMap.graph[u][v]['state'] == LiveMap.BLOCKED:
-                    path_blocked = True;
-            """
             if self.path_blocked:
                 #cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
                 #LiveMap._collision_check()
                 start = self.path[max(0,self.goal_cnt - 1)]
+<<<<<<< HEAD
                 came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal, check_edges=True)
                 self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
+=======
+                came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
+                try:
+                    self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
+                except KeyError:
+                    rospy.loginfo("Cannot go to goal! Stopping node.")
+                    rospy.signal_shutdown("Cannot go to goal! Stopping node.")
+                    return # path_blocked = True from now until shutdown
+
+>>>>>>> 168e2ec7cf452e118c084fdfe620201a788e1867
                 self.set_new_path(self.path, LiveMap, at_first_node = False)
                 self.set_and_send_next_goal()
                 self.path_blocked = False
@@ -237,3 +261,6 @@ if __name__ == '__main__':
         MoveBaseSeq(path, map0)
     except rospy.ROSInterruptException:
         rospy.loginfo("Navigation finished.")
+
+    # save pgm/yaml file of map
+    os.system("rosrun map_server map_saver -f " + mapdir + "/test")

@@ -110,6 +110,10 @@ def check_blur(GG):
     # W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
     W = gaussblur(box, bounds, pxbounds, GG.img_res, kernel)
 
+def check_cost_to_goal(nav_graph):
+    nav_graph.update_cost_to_goal()
+    print("Cost from start: {}".format(nav_graph.get_cost_to_goal(56)))
+
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
     logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.INFO)
@@ -160,4 +164,5 @@ if __name__ == '__main__':
     # check_neighbours(nav_graph)
 
     # check_blur(nav_graph)
+    check_cost_to_goal(nav_graph)
     raw_input('Press any key to continue')
