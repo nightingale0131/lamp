@@ -63,7 +63,7 @@ def heuristic(a, b):
     return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
     #return abs(x1 - x2) + abs(y1 - y2)
 
-def a_star_search(graph, start, goal):
+def a_star_search(graph, start, goal, check_edges=False):
     """A star algorithm courtesy of http://www.redblobgames.com/pathfinding/
 
     """
@@ -81,6 +81,8 @@ def a_star_search(graph, start, goal):
             break
 
         for next in graph.neighbours(current):
+            if check_edges:
+                graph._edge_check((current,next))
             new_cost = cost_so_far[current] + graph.weight(current, next)
             if next not in cost_so_far or new_cost < cost_so_far[next]:
                 cost_so_far[next] = new_cost
