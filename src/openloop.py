@@ -48,15 +48,11 @@ class MoveBaseSeq():
 
     def feedback_cb(self, feedback):
         # print current pose at each feedback
-<<<<<<< HEAD
-        if False:
-            rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ": " + str(feedback))
-=======
         # feedback is MoveBaseFeedback type msg
         pose = feedback.base_position.pose
         rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ":\n" +
                       self.print_pose_in_euler(pose))
-        
+
         # check if robot is close enough to send next goal
         position = feedback.base_position.pose.position
         (x,y) = (position.x, position.y)
@@ -70,7 +66,6 @@ class MoveBaseSeq():
             rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached")
             self.goal_cnt += 1
             self.set_and_send_next_goal()
->>>>>>> 168e2ec7cf452e118c084fdfe620201a788e1867
 
     def done_cb(self, status, result):
         # refer to http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
@@ -215,10 +210,6 @@ class MoveBaseSeq():
                 #cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
                 #LiveMap._collision_check()
                 start = self.path[max(0,self.goal_cnt - 1)]
-<<<<<<< HEAD
-                came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal, check_edges=True)
-                self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
-=======
                 came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
                 try:
                     self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
@@ -227,7 +218,6 @@ class MoveBaseSeq():
                     rospy.signal_shutdown("Cannot go to goal! Stopping node.")
                     return # path_blocked = True from now until shutdown
 
->>>>>>> 168e2ec7cf452e118c084fdfe620201a788e1867
                 self.set_new_path(self.path, LiveMap, at_first_node = False)
                 self.set_and_send_next_goal()
                 self.path_blocked = False
