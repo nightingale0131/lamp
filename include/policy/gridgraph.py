@@ -45,6 +45,8 @@ class GridGraph(object):
         #   origins are all in the same location in ref to the world
         self.occ_grid = cv2.imread(gridfile, cv2.IMREAD_GRAYSCALE)
         self.origin, self.img_res = get_origin(yamlfile)
+        self.cost_to_goal = {}
+        self.path_to_goal = {}
 
         if refmap==None:
             (self.imgheight, self.imgwidth) = self.occ_grid.shape
@@ -66,6 +68,14 @@ class GridGraph(object):
 
         # check which edges are blocked/unblocked
         logger.info('Finished initialization')
+
+    def update_cost_to_goal(self):
+        cost, paths = nx.single_source_dijkstra(self.graph, self.goal, weight = 'dist')
+        self.cost_to_goal = cost
+        self.path_to_goal = paths
+
+    def get_cost_to_goal(self, v):
+        return self.cost_to_goal[v]
 
     def _align(self, refimg):
         # refimg - cv2 image object
