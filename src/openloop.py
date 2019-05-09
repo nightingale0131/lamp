@@ -28,7 +28,7 @@ class MoveBaseSeq():
         self.path_blocked = False
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
-        self.map_subscriber = rospy.Subscriber("map", OccupancyGrid, self.map_callback)
+        self.map_subscriber = rospy.Subscriber("map", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
 
         self.set_new_path(path, self.base_map) # sets pose_seq and goal_cnt
@@ -49,7 +49,8 @@ class MoveBaseSeq():
 
     def feedback_cb(self, feedback):
         # print current pose at each feedback
-        rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ": " + str(feedback))
+        if False:
+            rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ": " + str(feedback))
 
     def done_cb(self, status, result):
         # refer to http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
@@ -172,7 +173,8 @@ class MoveBaseSeq():
     def map_callback(self, data):
         # constantly checking if edge is blocked
         if self.path_blocked == False:
-            LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.5)
+            LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.75)
+            cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
             for i in range(max(1, self.goal_cnt), len(self.path)):
                 u = self.path[max(0,i-1)]
                 v = self.path[max(1,i)]
@@ -197,10 +199,10 @@ class MoveBaseSeq():
                     path_blocked = True;
             """
             if self.path_blocked:
-                cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
-                LiveMap._collision_check()
+                #cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
+                #LiveMap._collision_check()
                 start = self.path[max(0,self.goal_cnt - 1)]
-                came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
+                came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal, check_edges=True)
                 self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
                 self.set_new_path(self.path, LiveMap, at_first_node = False)
                 self.set_and_send_next_goal()
