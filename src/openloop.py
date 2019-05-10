@@ -204,7 +204,7 @@ class MoveBaseSeq():
                     rospy.loginfo("Path is blocked!")
                     self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
                     if i == self.goal_cnt:
-                        self.goal_cnt = 0
+                        self.goal_cnt = self.goal_cnt - 1
                     break
                 # ^ causes client to flip between sending new goal and cancelling
 
