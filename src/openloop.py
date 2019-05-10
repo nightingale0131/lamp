@@ -203,14 +203,16 @@ class MoveBaseSeq():
                     self.path_blocked = True;
                     rospy.loginfo("Path is blocked!")
                     self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                    if i == self.goal_cnt:
+                        self.goal_cnt = 0
                     break
                 # ^ causes client to flip between sending new goal and cancelling
 
             if self.path_blocked:
                 #cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
                 #LiveMap._collision_check()
-                start = self.path[max(0,self.goal_cnt - 1)]
-                came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal)
+                start = self.path[max(0,self.goal_cnt)]
+                came_from, cost_so_far = util.a_star_search(LiveMap, start, LiveMap.goal, check_edges=True)
                 try:
                     self.path = util.reconstruct_path(came_from, start, LiveMap.goal)
                 except KeyError:
