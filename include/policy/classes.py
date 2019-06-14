@@ -5,8 +5,7 @@ Creation date: 2018-08-11
 
 #!/usr/bin/python
 import logging
-from dijkstra import dijkstra
-from graph import Graph, WeightedGraph
+import networkx as nx
 logger = logging.getLogger(__name__)
 
 class Node(object):
@@ -88,14 +87,15 @@ class Cost(object):
         I could potentially get rid of this and just directly use the dict if I need to do
         some optimization
     """
-    def __init__(self,dijkstra_output):
-        self._dict=dijkstra_output
+    def __init__(self, cost, paths):
+        self.cost = cost
+        self.paths = paths
 
     def cost(self,vertex):
-        return self._dict[vertex]['dist']
+        return self.cost[vertex]
 
     def path(self,vertex):
-        return self._dict[vertex]['path']
+        return self.paths[vertex]
 
 class Map(object):
     """
@@ -107,6 +107,7 @@ class Map(object):
             - observe(v, range)
             - neighbours(v)
             - state(e)
+            - _visibility(
         The class must have the idea of vertices (states that the robot can move between)
         and features (some discretization of what the robot can sense)
     """
@@ -117,7 +118,7 @@ class Map(object):
         self._features = {} # dict of features, {e: [set(v1,v2...), state of e], ...}
 
     def update_cost(self, v):
-        self._cost[v] = Cost( dijkstra( self.G, self.G.weight, v ) )
+        self._cost[v] = Cost( nx.single_source_dijkstra( self.G, self.G.goal, weight = 'weight' ) )
 
     def get_cost(self, v, u):
         # min cost from v to u, assuming either v or u has been calculated already
@@ -125,25 +126,24 @@ class Map(object):
         elif u in self._cost.keys(): return self._cost[u].cost(v)
         else: raise Exception('Cost from {} to {} has not been calculated yet!'.format(v,u))
 
-    def update_all_feature_states( self, obs_range):
+    def update_all_feature_states( self ):
         # using G.observe, determine list of features, what state they are in, and what
         #   vertex they can be sensed (in G at a range of obs_range)
 
         self._features.clear()
-        self.G.calc_vis(obs_range) # recalculate visibility matrix
-
-        for v in self.G._visibility.keys():
+        for v in self.G.graph.nodes():
             observation = self.G.observe(v)
 
-            for e, state in observation.items():
+            for u, v, state in observation:
+                e = (u,v)
                 if e not in self._features.keys():
                     self._features[e] = [ {v}, state ]
-                elif self._features[e][1] == state: 
+                elif self._features[e][1] == state:
                     self._features[e][0].add(v)
                 else: raise Exception('Conflicting states of feature {}'.format(e))
 
     def feature_state( self, feature):
-        if feature not in self.features(): 
+        if feature not in self.features():
             logger.error("{} not a feature in current map!".format(feature))
             return -1
         return self._features[feature][1]

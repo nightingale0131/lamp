@@ -69,14 +69,6 @@ class GridGraph(object):
         # check which edges are blocked/unblocked
         logger.info('Finished initialization')
 
-    def update_cost_to_goal(self):
-        cost, paths = nx.single_source_dijkstra(self.graph, self.goal, weight = 'dist')
-        self.cost_to_goal = cost
-        self.path_to_goal = paths
-
-    def get_cost_to_goal(self, v):
-        return self.cost_to_goal[v]
-
     def _align(self, refimg):
         # refimg - cv2 image object
         imAligned, h = alignImages(self.occ_grid, refimg)
@@ -186,8 +178,8 @@ class GridGraph(object):
         logger.debug('Box corners: {}, {}, {}, {}'
                 .format(box.left, box.right, box.top, box.bottom))
         importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
-        """      
-        
+        """
+
         # Do probability check to see state of edge, assign to edge attribute
         # pixel mapping: 0 - unknown, otherwise x/255 to get probability of pixel being
         #               FREE 
@@ -236,7 +228,6 @@ class GridGraph(object):
 
         self.graph[u][v]['prob'] = prob_free
         self.graph[u][v]['dist'] = self.dist(u,v)
-        self.graph[u][v]['weight'] = self.graph[u][v]['dist']*prob_free
 
         # Thresholding of edges to states
         # The following is problematic/too simple
@@ -246,6 +237,9 @@ class GridGraph(object):
             self.graph[u][v]['prob'] = 0.5 
         elif prob_free > 0.7: self.graph[u][v]['state'] = self.UNBLOCKED
         else: self.graph[u][v]['state'] = self.UNKNOWN
+
+        # for nx
+        self.graph[u][v]['weight'] = self.weight(u,v)
 
     def _collision_check(self, modify=False):
         # do collision checking on all edges
@@ -262,6 +256,15 @@ class GridGraph(object):
             for node in self.graph.nodes():
                 if self.graph.degree(node) == 0:
                     self.graph.remove_node(node)
+
+    def observe(self, v):
+        """
+        PLACEHOLDER
+        If robot were to observe from v, return list of edges it should be able to see
+        NOTE TO TRISTAN: feel free to change this however you like, all this does is set
+        the visibility to all edges can be viewed from any vertex 
+        """
+        return self.graph.edges(data='state')
 
     def _cart_to_pixel(self, pt):
         # Assumes pt is within bounds of occ_grid
@@ -465,6 +468,7 @@ def list_to_matrix(raw_data, width, height):
             # change to match value in pgm files
             data = raw_data[(height - row - 1)*width + col]
             if data <= 55 : data = 0 
+            # if data == -1: data = 0
             matrix[row,col] = (100 - data)*2.54
 
     return matrix
