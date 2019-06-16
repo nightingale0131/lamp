@@ -126,7 +126,10 @@ class GridGraph(object):
         # attr - dictionary of edge attributes, this is not used, but these 3 arguments
         #        are needed to satisfy networkx dijkstra function requirements
         # considers unknowns as blocked edges
-        return None # placeholder
+        if self.graph[u][v]['state'] == self.UNBLOCKED:
+            return self.dist(u,v)
+        else:
+            return float('inf')
 
     def _edge_check(self, edge):
         # get bounding box on graph edge
@@ -240,6 +243,7 @@ class GridGraph(object):
 
         # for nx
         self.graph[u][v]['weight'] = self.weight(u,v)
+        self.graph[u][v]['knownWeight'] = self.known_weight(u,v)
 
     def _collision_check(self, modify=False):
         # do collision checking on all edges
@@ -256,6 +260,9 @@ class GridGraph(object):
             for node in self.graph.nodes():
                 if self.graph.degree(node) == 0:
                     self.graph.remove_node(node)
+
+    def vertices(self):
+        return self.graph.nodes()
 
     def observe(self, v):
         """
@@ -845,3 +852,4 @@ def boxblurV(box, bounds, pxbounds, img_res, k, weight):
             weight.update({(row,col): val/(r + r + 1)})
 
     return weight
+

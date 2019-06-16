@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 import timing # measures runtime
 import sys
 import math
+import networkx as nx
 
 from collections import deque # queue class
 from copy import deepcopy
 
-from graph import Graph, WeightedGraph
-from grid import SquareGrid, ObservedGrid
+from gridgraph import GridGraph 
 from classes import Cost, Node, Outcome, Observation
-from dijkstra import dijkstra
-from utility import isclose
+# from dijkstra import dijkstra
+from utility import isclose, euclidean_distance
 
 def get_knownG(features, supermaps, belief):
     """
@@ -33,7 +33,9 @@ def get_knownG(features, supermaps, belief):
     """
     logger.info("Updating knownG...")
     base_map = supermaps[0]
-    knownG=type(base_map.G)(base_map.G) # use same type as Map.G
+    # knownG=type(base_map.G.graph)(base_map.G) # use same type as Map.G
+    knownG=nx.Graph()
+    knownG.add_nodes_from(base_map.G.vertices())
     # all feature states are unknown
 
     # compare features for all supermaps
@@ -50,10 +52,17 @@ def get_knownG(features, supermaps, belief):
 
         # if feature state is the same in all supermaps in the belief, use it to update
         # the knownG
-        if is_known: known_features[feature] = state
+        # if is_known: known_features[feature] = state
+        (a,b) = feature
+        knownG.add_edge(a,b)
+        if is_known and state == base_map.G.UNBLOCKED: 
+            # assuming feature is an edge that looks like (a,b)
+            knownG[a][b]['weight'] = base_map.G.weight(a,b) 
+        else:
+            knownG[a][b]['weight'] = float('inf')
 
-    logger.debug("known features = {}".format(known_features))
-    knownG.update(known_features)
+    # logger.debug("known features = {}".format(known_features))
+    logger.debug(nx.info(knownG))
     return knownG
 
 def solve_RPP(M, p, features, start, goal):
@@ -113,7 +122,10 @@ def solve_RPP(M, p, features, start, goal):
             # update known graph & calc transition costs from v
             knownG = get_knownG(features, M, Y)
             logger.info("Calculating c_knownG")
-            c_knownG = Cost(dijkstra(knownG, knownG.known_weight, v))
+            cost, paths = nx.single_source_dijkstra( knownG, base_map.G.goal, weight =
+            'weight')
+            # c_knownG = Cost(dijkstra(knownG, knownG.known_weight, v))
+            c_knownG = Cost(cost, paths)
 
             # compute R ----------------------------------------
             R, D = useful_features( features, M, p_Xy, c_knownG, Y, goal )
@@ -127,7 +139,7 @@ def solve_RPP(M, p, features, start, goal):
                 # If R is empty, then it's cheaper to go to the goal than to go
                 #   anywhere else
                 logger.info('Add goal to policy')
-                new_node.add_leg(goal,None,c_knownG.path(goal))
+                new_node.add_leg(goal,None,c_knownG.paths[goal])
             else:
                 # else find the best observation (min of eqn 10), add tiebreaker
                 minScore = float('inf') # result of eqn 10
@@ -180,7 +192,7 @@ def solve_RPP(M, p, features, start, goal):
                 minObservation = deepcopy(min_o)
 
                 # set node observation, state, and path
-                new_node.add_leg(min_u,minObservation,c_knownG.path(min_u))
+                new_node.add_leg(min_u,minObservation,c_knownG.paths[min_u])
 
                 # Add new children nodes and add those to the queue
                 for outcome in min_o.outcomes:
@@ -264,10 +276,10 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
                 # can pick better observations to minimize that path
                 expected_cost += cost_to_goal*p_Xy[i]
 
-        cost_to_v = c_knownG.cost(v)
+        cost_to_v = c_knownG.cost[v]
         cost_v = cost_to_v + expected_cost
 
-        if c_knownG.cost(goal) > cost_v:
+        if c_knownG.cost[goal] > cost_v:
             reachable_v[v]= cost_v
 
     logger.debug('reachable_v = {}'.format(reachable_v))
