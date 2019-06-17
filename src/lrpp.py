@@ -61,7 +61,7 @@ if __name__ == '__main__':
     goal = (-8.0, 4.5)
 
     # enable logging other than roslog
-    logging.basicConfig(filename = pkgdir + '/debug.log', filemode='w',
+    logging.basicConfig(filename = pkgdir + '/lrpp_debug.log', filemode='w',
             level=logging.DEBUG)
 
     # import maps
