@@ -122,7 +122,7 @@ def solve_RPP(M, p, features, start, goal):
             # update known graph & calc transition costs from v
             knownG = get_knownG(features, M, Y)
             logger.info("Calculating c_knownG")
-            cost, paths = nx.single_source_dijkstra( knownG, base_map.G.goal, weight =
+            cost, paths = nx.single_source_dijkstra( knownG, v, weight =
             'weight')
             # c_knownG = Cost(dijkstra(knownG, knownG.known_weight, v))
             c_knownG = Cost(cost, paths)
@@ -279,7 +279,10 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
         cost_to_v = c_knownG.cost[v]
         cost_v = cost_to_v + expected_cost
 
-        if c_knownG.cost[goal] > cost_v:
+        logger.debug("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
+                .format(c_knownG.cost[goal], v, cost_v))
+        if cost_v == float('inf'): continue # v is not reachable if cost is infinite
+        if c_knownG.cost[goal] > cost_v and not isclose(c_knownG.cost[goal], cost_v):
             reachable_v[v]= cost_v
 
     logger.debug('reachable_v = {}'.format(reachable_v))
