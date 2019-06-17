@@ -18,7 +18,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 class MoveBaseSeq():
-    def __init__(self, path, gridgraph):
+    def __init__(self, gridgraph, path=None, policy=None):
         # seq - list of vertices [v1, v2, ...]
         # gridgraph - base grid graph map needed for graph edges
         rospy.init_node('move_base_seq')
@@ -67,6 +67,8 @@ class MoveBaseSeq():
             self.goal_cnt += 1
             self.set_and_send_next_goal()
 
+        # TODO: Add clause here to initiate next node
+
     def done_cb(self, status, result):
         # refer to http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
         if status == 2:
@@ -81,6 +83,8 @@ class MoveBaseSeq():
                 rospy.loginfo("Final goal pose reached!")
                 rospy.signal_shutdown("Final goal pose reached!")
                 return
+            # TODO: modify this to only return 'done' if final goal at end of policy is
+            # reached
 
         if status == 4:
             # The goal was aborted during execution by the action server due
@@ -238,7 +242,7 @@ if __name__ == '__main__':
     pgm0 = mapdir + 'simple1.pgm'
     yaml0 = mapdir + 'simple1.yaml'
 
-    logging.basicConfig(filename = pkgdir + '/debug.log', filemode='w', level=logging.INFO)
+    logging.basicConfig(filename = pkgdir + '/openloop_debug.log', filemode='w', level=logging.INFO)
 
     map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
     print(nx.info(map0.graph))
@@ -250,9 +254,11 @@ if __name__ == '__main__':
 
     # give path to MoveBaseSeq
     try:
-        MoveBaseSeq(path, map0)
+        MoveBaseSeq(map0, path=path)
     except rospy.ROSInterruptException:
         rospy.loginfo("Navigation finished.")
 
     # save pgm/yaml file of map
-    os.system("rosrun map_server map_saver -f " + mapdir + "/test")
+    os.system("rosrun map_server map_saver -f " + mapdir + "test")
+    # shut down cartographer
+    os.system("rosnode kill /cartographer_node /cartographer_occupancy_grid_node /move_base")
