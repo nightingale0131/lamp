@@ -131,8 +131,8 @@ class Map(object):
         for v in self.G.graph.nodes():
             observation = self.G.observe(v)
 
-            for u, v, state in observation:
-                e = (u,v)
+            for a,b, state in observation:
+                e = (a,b)
                 if e not in self._features.keys():
                     self._features[e] = [ {v}, state ]
                 elif self._features[e][1] == state:
