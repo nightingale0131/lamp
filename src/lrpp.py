@@ -33,7 +33,7 @@ def import_maps(folder, supermaps, goal):
     # imports all pgm/yaml files in folder
     # assumes they are all for the same environment and start/goal is the same
     count = 0 
-    for pgm_path in glob.glob(folder + "/*.pgm"):
+    for pgm_path in sorted(glob.glob(folder + "/*.pgm")):
         count += 1
 
         # get yaml file as well
@@ -76,4 +76,3 @@ if __name__ == '__main__':
         # follow path
         # once path is done, make observation
         # set next leg of outcome as next path
-    
