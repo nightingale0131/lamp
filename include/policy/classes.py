@@ -42,9 +42,12 @@ class Node(object):
             # if there's no observation assigned, set to None
             feature = None
 
-        print('{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path))
+        # print('{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path))
+        msg = '\n{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path)
         for node in self.children:
-            node.print_policy()
+            msg += node.print_policy()
+
+        return msg
 
     def next_node(self, feature_state=None):
         """ returns the next node based on the state of feature
