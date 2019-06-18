@@ -67,12 +67,21 @@ if __name__ == '__main__':
     # import maps
     M = []
     import_maps(mapdir, M, goal)
-    p = update_p_est(M, 2)
+    p = update_p_est(M, 5) # pmf of maps is hard coded right now
     features = M[0].features()
+    base_map = M[0].G
+
     # run rpp
     policy = rpp.solve_RPP(M, p, features, M[0].G.start, M[0].G.goal)
-    policy[0].print_policy()
+    logging.info(policy[0].print_policy())
+
     # execute policy
-        # follow path
-        # once path is done, make observation
-        # set next leg of outcome as next path
+    try:
+        MoveBaseSeq(base_map, policy=policy)
+    except rospy.ROSInterruptException:
+        rospy.loginfo("Navigation finished.")
+
+    # save pgm/yaml file of map
+    os.system("rosrun map_server map_saver -f " + mapdir + "test")
+    # shut down cartographer
+    os.system("rosnode kill /cartographer_node /cartographer_occupancy_grid_node /move_base")
