@@ -62,8 +62,8 @@ class MoveBaseSeq():
 
         dist_to_curr_goal = util.euclidean_distance((x,y), (gx,gy))
 
-        if dist_to_curr_goal < 0.25 and (self.goal_cnt < len(self.pose_seq) - 1):
-            rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached")
+        if dist_to_curr_goal < 0.5 and (self.goal_cnt < len(self.pose_seq) - 1):
+            rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached!")
             self.goal_cnt += 1
             self.set_and_send_next_goal()
 
@@ -229,14 +229,16 @@ class MoveBaseSeq():
 if __name__ == '__main__':
     # specify start and goal
     start = (0.0, 0.0)
-    goal = (-8.0, 4.5)
+    #goal = (4.0, -4.0) #for robohub
+    #goal = (-8.0, 4.5)
+    goal = (0.0,8.5)
     # goal = (-6.0, 3.7)
     # load map and determine graph
     rospack = rospkg.RosPack()
     pkgdir = rospack.get_path('policy')
     mapdir = pkgdir + '/maps/'
-    pgm0 = mapdir + 'simple1.pgm'
-    yaml0 = mapdir + 'simple1.yaml'
+    pgm0 = mapdir + 'maze1.pgm'
+    yaml0 = mapdir + 'maze1.yaml'
 
     logging.basicConfig(filename = pkgdir + '/debug.log', filemode='w', level=logging.INFO)
 
