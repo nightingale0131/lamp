@@ -5,6 +5,8 @@ logger = logging.getLogger(__name__)
 import os
 
 from policy.gridgraph import GridGraph, BoundingBox, boxblur, boxblurV, gaussblur
+from policy import utility as util
+from policy.classes import Map
 import networkx as nx
 import cv2
 from matplotlib import pyplot as plt
@@ -24,9 +26,11 @@ def show_init_graph(gridgraph):
     # extract edges that are not blocked
     not_blocked, unknown = _get_not_blocked_edges(gridgraph)
 
+    fig, ax1 = plt.subplots(1,1)
     plt.imshow(gridgraph.occ_grid, cmap='gray', interpolation='bicubic', extent=gridgraph.bounds)
     nx.draw(gridgraph.graph, pos, node_size=20, edgelist=not_blocked, with_labels=True)
     nx.draw(gridgraph.graph, pos, node_size=20, edgelist=unknown, edge_color='g')
+    ax1.set_axis_on()
     plt.show(block=False)
 
 def show_comparison(refmap, newmap):
@@ -110,19 +114,31 @@ def check_blur(GG):
     # W = boxblur(box, bounds, pxbounds, GG.img_res, kernel, W)
     W = gaussblur(box, bounds, pxbounds, GG.img_res, kernel)
 
+"""
 def check_cost_to_goal(nav_graph):
     nav_graph.update_cost_to_goal()
-    print("Cost from start: {}".format(nav_graph.get_cost_to_goal(56)))
+    print("Cost from start: {}".format(nav_graph.get_cost_to_goal(nav_graph.start)))
+    print("Path to start: {}".format(nav_graph.path_to_goal[nav_graph.start]))
+"""
+
+def check_map_agreement(GG1, GG2):
+    map1 = Map(GG1)
+    map2 = Map(GG2)
+
+    map1.update_all_feature_states()
+    map2.update_all_feature_states()
+
+    print("Agree? {}".format(map1.agrees_with(map2)))
 
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
     logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.INFO)
 
     # build base graph on initial map 
-    pgm = testpath + '/maps/simple1.pgm'
-    yaml = testpath + '/maps/simple1.yaml'
-    nav_graph = GridGraph(pgm, yaml, (-8, 4.5), graph_res=1.5, robot_width=0.5)
-    cv2.imwrite(testpath + 'cv2_img.jpg', nav_graph.occ_grid)
+    pgm = testpath + '/maps/robohub.pgm'
+    yaml = testpath + '/maps/robohub.yaml'
+    nav_graph = GridGraph(pgm, yaml, (4, -4), graph_res=1.5, robot_width=0.5)
+    cv2.imwrite(testpath + '/cv2_img.jpg', nav_graph.occ_grid)
     print(nx.info(nav_graph.graph))
     nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
 
@@ -130,8 +146,8 @@ if __name__ == '__main__':
     show_init_graph(nav_graph)
 
     # save new occ grid as GridGraph with refmap graph overlaid on top 
-    otherpgm = testpath + '/maps/problem.pgm'
-    otheryaml = testpath + '/maps/problem.yaml'
+    otherpgm = testpath + '/maps/robohub_trial_empty.pgm'
+    otheryaml = testpath + '/maps/robohub_trial_empty.yaml'
     other = GridGraph(otherpgm, otheryaml, (-8, 4.5), refmap=nav_graph, robot_width=0.5)
     show_comparison(nav_graph, other)
 
@@ -164,5 +180,9 @@ if __name__ == '__main__':
     # check_neighbours(nav_graph)
 
     # check_blur(nav_graph)
-    check_cost_to_goal(nav_graph)
+    came_from, cost = util.a_star_search(nav_graph, nav_graph.start, nav_graph.goal)
+    path = util.reconstruct_path(came_from, nav_graph.start, nav_graph.goal)
+    print(path)
+
+    check_map_agreement(nav_graph, other)
     raw_input('Press any key to continue')

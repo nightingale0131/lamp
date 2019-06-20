@@ -69,14 +69,6 @@ class GridGraph(object):
         # check which edges are blocked/unblocked
         logger.info('Finished initialization')
 
-    def update_cost_to_goal(self):
-        cost, paths = nx.single_source_dijkstra(self.graph, self.goal, weight = 'dist')
-        self.cost_to_goal = cost
-        self.path_to_goal = paths
-
-    def get_cost_to_goal(self, v):
-        return self.cost_to_goal[v]
-
     def _align(self, refimg):
         # refimg - cv2 image object
         imAligned, h = alignImages(self.occ_grid, refimg)
@@ -134,7 +126,10 @@ class GridGraph(object):
         # attr - dictionary of edge attributes, this is not used, but these 3 arguments
         #        are needed to satisfy networkx dijkstra function requirements
         # considers unknowns as blocked edges
-        return None # placeholder
+        if self.graph[u][v]['state'] == self.UNBLOCKED:
+            return self.dist(u,v)
+        else:
+            return float('inf')
 
     def _edge_check(self, edge):
         # get bounding box on graph edge
@@ -171,7 +166,7 @@ class GridGraph(object):
         pxbounds = [leftpx, rightpx, toppx, downpx]
 
         # If needed, calculate the importance of each pixel in bounding box
-        '''
+        """ 
         try:
             importance = self.graph.edge[a][b]['importance']
             # ^ dictionary: {(row,col): value}
@@ -181,12 +176,13 @@ class GridGraph(object):
                     .format(box.left, box.right, box.top, box.bottom))
             importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
             self.graph.edge[a][b]['importance'] = importance
-        '''      
+
         logger.info('\tCalculating blur')
         logger.debug('Box corners: {}, {}, {}, {}'
                 .format(box.left, box.right, box.top, box.bottom))
-        #importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
-        
+        importance = gaussblur(box, self.bounds, pxbounds, self.img_res, 3)
+        """
+
         # Do probability check to see state of edge, assign to edge attribute
         # pixel mapping: 0 - unknown, otherwise x/255 to get probability of pixel being
         #               FREE 
@@ -221,10 +217,10 @@ class GridGraph(object):
                 if p == 0:
                     p = 1
                     k += 1
-                elif p > 0.50: p = 1
+                elif p > 0.60: p = 1
 
-                #w = importance[(row,col)]
-                #prob_free = prob_free*math.pow(p, w)
+                # w = importance[(row,col)]
+                # prob_free = prob_free*math.pow(p, w)
                 prob_free = prob_free*p
 
         # Assign the following states to the edge:
@@ -235,7 +231,6 @@ class GridGraph(object):
 
         self.graph[u][v]['prob'] = prob_free
         self.graph[u][v]['dist'] = self.dist(u,v)
-        self.graph[u][v]['weight'] = self.graph[u][v]['dist']*prob_free
 
         # Thresholding of edges to states
         # The following is problematic/too simple
@@ -245,6 +240,10 @@ class GridGraph(object):
             self.graph[u][v]['prob'] = 0.5 
         elif prob_free > 0.7: self.graph[u][v]['state'] = self.UNBLOCKED
         else: self.graph[u][v]['state'] = self.UNKNOWN
+
+        # for nx
+        self.graph[u][v]['weight'] = self.weight(u,v)
+        self.graph[u][v]['knownWeight'] = self.known_weight(u,v)
 
     def _collision_check(self, modify=False):
         # do collision checking on all edges
@@ -261,6 +260,18 @@ class GridGraph(object):
             for node in self.graph.nodes():
                 if self.graph.degree(node) == 0:
                     self.graph.remove_node(node)
+
+    def vertices(self):
+        return self.graph.nodes()
+
+    def observe(self, v):
+        """
+        PLACEHOLDER
+        If robot were to observe from v, return list of edges it should be able to see
+        NOTE TO TRISTAN: feel free to change this however you like, all this does is set
+        the visibility to all edges can be viewed from any vertex 
+        """
+        return self.graph.edges(data='state')
 
     def _cart_to_pixel(self, pt):
         # Assumes pt is within bounds of occ_grid
@@ -464,6 +475,7 @@ def list_to_matrix(raw_data, width, height):
             # change to match value in pgm files
             data = raw_data[(height - row - 1)*width + col]
             if data <= 55 : data = 0 
+            # if data == -1: data = 0
             matrix[row,col] = (100 - data)*2.54
 
     return matrix
@@ -840,3 +852,4 @@ def boxblurV(box, bounds, pxbounds, img_res, k, weight):
             weight.update({(row,col): val/(r + r + 1)})
 
     return weight
+
