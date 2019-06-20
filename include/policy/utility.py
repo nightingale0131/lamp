@@ -26,24 +26,6 @@ def isclose(a,b,rel_tol=1e-09, abs_tol=0.0):
     # implementation provided in python documentation
     return abs(a-b) <= max(rel_tol*max(abs(a), abs(b)), abs_tol)
 
-def import_maps(folder, supermaps):
-    # imports all pgm/yaml files in folder
-    # assumes they are all for the same environment and start/goal is the same
-    count = 0 
-    for pgm_path in glob.glob(folder + "/*.pgm"):
-        count += 1
-
-        # get yaml file as well
-        (root, ext) = os.path.splitext(pgm_path)
-        yaml_path = root + ".yaml"
-
-        if count == 1:
-            # assume 00 is the zero map
-            supermap = GridGraph(pgm_path, yaml_path,) 
-
-    print("Imported {} maps.".format(count))
-
-
 def reconstruct_path(came_from, start, goal):
     """ redblobgames@gmail.com
         Reconstruct a shortest path from a dictionary of back-pointers

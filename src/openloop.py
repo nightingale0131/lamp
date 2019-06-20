@@ -18,19 +18,27 @@ from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 class MoveBaseSeq():
-    def __init__(self, path, gridgraph):
+    def __init__(self, gridgraph, path=None, policy=None):
         # seq - list of vertices [v1, v2, ...]
         # gridgraph - base grid graph map needed for graph edges
         rospy.init_node('move_base_seq')
-        self.base_map = gridgraph;
-        self.path = path
-        self.path_blocked = False
+        self.base_map = gridgraph
+        self.LiveMap = None # filled in by map_callback
+        self.path_blocked = False # flag for path being blocked, calls reactive algo
+        self.observe = False # flag for making an observation
+        self.at_final_goal = False # flag for reaching final destination
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.map_subscriber = rospy.Subscriber("map", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
+        
+        if policy == None:
+            self.path = path
+        else:
+            self.node = policy[0].next_node()
+            self.path = self.node.path
 
-        self.set_new_path(path, self.base_map) # sets pose_seq and goal_cnt
+        self.set_new_path(self.path, self.base_map) # sets pose_seq and goal_cnt
 
         # connect to move_base node
         rospy.loginfo("Waiting for move_base action server...")
@@ -66,6 +74,33 @@ class MoveBaseSeq():
             rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached!")
             self.goal_cnt += 1
             self.set_and_send_next_goal()
+        elif dist_to_curr_goal < 0.25 and (self.goal_cnt == len(self.pose_seq) - 1):
+            rospy.loginfo("Reached end of path")
+            # observe and select next node based on state of observed feature
+            if self.observe == False and self.going_to_final_goal() != True:
+                self.observe == True
+                edge_to_observe = self.node.opair.E
+                self.make_observation(edge_to_observe)
+            # if feature is unknown move to reactive b/c it is not visible when it
+            # should've been
+
+    def make_observation(self, edge):
+        # returns state of edge in current LiveMap
+        (u,v) = edge
+        self.LiveMap._edge_check(edge)
+        feature_state = self.LiveMap.graph[u][v]['state']
+        rospy.loginfo("State of observed edge {}: {}".format(edge, feature_state))
+
+        # selecting next node in tree and setting path
+        self.node = self.node.next_node(feature_state)
+        rospy.loginfo("next path: {}".format(self.node.path))
+        self.path = self.node.path # update path
+        self.set_new_path(self.path, self.base_map) # update pose seq
+        self.set_and_send_next_goal()
+
+    def going_to_final_goal(self):
+        if self.path[self.goal_cnt] == self.base_map.goal: return True
+        else: return False
 
     def done_cb(self, status, result):
         # refer to http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
@@ -77,7 +112,8 @@ class MoveBaseSeq():
 
         if status == 3:
             # The goal was achieved successfully by the action server (Terminal State)
-            if self.goal_cnt == len(self.pose_seq) - 1:
+            rospy.loginfo("Done Status 3")
+            if self.going_to_final_goal() == True:
                 rospy.loginfo("Final goal pose reached!")
                 rospy.signal_shutdown("Final goal pose reached!")
                 return
@@ -136,7 +172,8 @@ class MoveBaseSeq():
             rospy.loginfo(angle)
         quat_seq = list()
         self.pose_seq = list() # list of poses, combo of Point and Quaternion
-        self.goal_cnt = 1 if at_first_node else 0
+        self.goal_cnt = 0
+        # self.goal_cnt = 1 if at_first_node else 0
         for yawangle in yaweulerangles_seq:
             quat_seq.append(Quaternion(*(quaternion_from_euler(0, 0, yawangle))))
         n = 0
@@ -190,7 +227,10 @@ class MoveBaseSeq():
         # constantly checking if edge is blocked
         if self.path_blocked == False:
             LiveMap = LiveGridGraph(data, self.base_map, robot_width=0.75)
-            cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
+            self.LiveMap = LiveMap # this may cause timing issues
+            # cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
+
+            # follow path
             for i in range(max(1, self.goal_cnt), len(self.path)):
                 u = self.path[max(0,i-1)]
                 v = self.path[max(1,i)]
@@ -206,7 +246,6 @@ class MoveBaseSeq():
                     if i == self.goal_cnt:
                         self.goal_cnt = self.goal_cnt - 1
                     break
-                # ^ causes client to flip between sending new goal and cancelling
 
             if self.path_blocked:
                 #cv2.imwrite('liveMap.jpg', LiveMap.occ_grid)
@@ -240,7 +279,7 @@ if __name__ == '__main__':
     pgm0 = mapdir + 'maze1.pgm'
     yaml0 = mapdir + 'maze1.yaml'
 
-    logging.basicConfig(filename = pkgdir + '/debug.log', filemode='w', level=logging.INFO)
+    logging.basicConfig(filename = pkgdir + '/openloop_debug.log', filemode='w', level=logging.INFO)
 
     map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
     print(nx.info(map0.graph))
@@ -252,9 +291,11 @@ if __name__ == '__main__':
 
     # give path to MoveBaseSeq
     try:
-        MoveBaseSeq(path, map0)
+        MoveBaseSeq(map0, path=path)
     except rospy.ROSInterruptException:
         rospy.loginfo("Navigation finished.")
 
     # save pgm/yaml file of map
-    os.system("rosrun map_server map_saver -f " + mapdir + "/test")
+    os.system("rosrun map_server map_saver -f " + mapdir + "test")
+    # shut down cartographer
+    os.system("rosnode kill /cartographer_node /cartographer_occupancy_grid_node /move_base")

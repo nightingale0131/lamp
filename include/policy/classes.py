@@ -42,9 +42,12 @@ class Node(object):
             # if there's no observation assigned, set to None
             feature = None
 
-        print('{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path))
+        # print('{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path))
+        msg = '\n{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path)
         for node in self.children:
-            node.print_policy()
+            msg += node.print_policy()
+
+        return msg
 
     def next_node(self, feature_state=None):
         """ returns the next node based on the state of feature
@@ -91,12 +94,6 @@ class Cost(object):
         self.cost = cost
         self.paths = paths
 
-    def cost(self,vertex):
-        return self.cost[vertex]
-
-    def path(self,vertex):
-        return self.paths[vertex]
-
 class Map(object):
     """
         General wrapper class for different types of maps (grids, graphs).
@@ -116,14 +113,17 @@ class Map(object):
         self.n = 1 # int, number of times map was encountered
         self._cost = {}  # dict of Cost type objects, estimated cost to some vertex
         self._features = {} # dict of features, {e: [set(v1,v2...), state of e], ...}
+        self.update_all_feature_states()
+        self.update_cost(G.goal)
 
     def update_cost(self, v):
-        self._cost[v] = Cost( nx.single_source_dijkstra( self.G, self.G.goal, weight = 'weight' ) )
+        cost, path = nx.single_source_dijkstra( self.G.graph, self.G.goal, weight = 'weight' ) 
+        self._cost[v] = Cost(cost, path) 
 
     def get_cost(self, v, u):
         # min cost from v to u, assuming either v or u has been calculated already
-        if v in self._cost.keys(): return self._cost[v].cost(u)
-        elif u in self._cost.keys(): return self._cost[u].cost(v)
+        if v in self._cost.keys(): return self._cost[v].cost[u]
+        elif u in self._cost.keys(): return self._cost[u].cost[v]
         else: raise Exception('Cost from {} to {} has not been calculated yet!'.format(v,u))
 
     def update_all_feature_states( self ):
@@ -134,8 +134,8 @@ class Map(object):
         for v in self.G.graph.nodes():
             observation = self.G.observe(v)
 
-            for u, v, state in observation:
-                e = (u,v)
+            for a,b, state in observation:
+                e = (a,b)
                 if e not in self._features.keys():
                     self._features[e] = [ {v}, state ]
                 elif self._features[e][1] == state:

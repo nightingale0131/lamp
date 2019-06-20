@@ -5,6 +5,7 @@ import imutils
 import numpy as np
 import visilibity as vis
 import numpy.linalg as LA
+<<<<<<< HEAD
 from policy.gridgraph import GridGraph, LiveGridGraph
 
 def ccw(Ax,Ay,Bx,By,Cx,Cy):
@@ -87,6 +88,8 @@ def visible_set(gridGraph, observationPoint):
 	cv2.waitKey(0)
 	return visible_set
 
+=======
+>>>>>>> ac4120e915960c6afbeedeb09e79ed58dcc1c765
 
 def save_print(polygon):
     end_pos_x = []
@@ -118,6 +121,7 @@ epsilon = 0.0000001
 rospack = rospkg.RosPack()
 pkgdir = rospack.get_path('policy')
 mapdir = pkgdir + '/maps/'
+<<<<<<< HEAD
 pgm0 = mapdir + 'simple1.pgm'
 yaml0 = mapdir + 'simple1.yaml'
 #image = cv2.imread(pgm0)
@@ -145,6 +149,33 @@ map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
 
 #print(np.size(cnts[0]))
 '''
+=======
+pgm0 = mapdir + 'test.pgm'
+yaml0 = mapdir + 'simple1.yaml'
+image = cv2.imread(pgm0)
+image[np.where((image == [0,0,0]).all(axis = 2))] = [255,255,255]
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+#gray = cv2.bitwise_not(gray)
+#blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+thresh = cv2.threshold(gray, 120, 255, cv2.THRESH_BINARY_INV)[1]
+#thresh = thresh[10:-10,10:-10]
+
+cv2.imshow("sample", thresh)
+#cv2.waitKey(0)
+
+cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+cnts = imutils.grab_contours(cnts)
+
+'''
+for c in cnts:
+	cv2.drawContours(image, [c], -1, (0, 255, 0), 2)
+ 
+	# show the output image
+	cv2.imshow("Image", image)
+	cv2.waitKey(0)
+'''
+print(np.size(cnts[0]))
+>>>>>>> ac4120e915960c6afbeedeb09e79ed58dcc1c765
 observer = vis.Point(100,100)
 obstacles = []
 maxArea = 0
@@ -153,7 +184,18 @@ for idx, c in enumerate(cnts):
 	if cv2.contourArea(c) > maxArea:
 		maxArea = cv2.contourArea(c)
 		maxidx = idx
+<<<<<<< HEAD
 
+=======
+'''for idx in range(len(cnts)):
+	minpt = 9999
+	minidx = 0
+	for i, p in enumerate(cnts[idx]):
+		if LA.norm(p[0]) < minpt:
+			minpt = LA.norm(p[0])
+			minidx = i
+	cnts[idx] = cnts[idx][minidx:]+cnts[idx][:minidx]'''
+>>>>>>> ac4120e915960c6afbeedeb09e79ed58dcc1c765
 for idx, c in enumerate(cnts):
 	points = []
 	for p in c:
@@ -163,14 +205,22 @@ env = vis.Environment(obstacles)
 observer.snap_to_boundary_of(env, epsilon)
 observer.snap_to_vertices_of(env, epsilon)
 isovist = vis.Visibility_Polygon(observer, env, epsilon)
+<<<<<<< HEAD
 '''
 # Print the point of the visibility polygon of 'observer' and save them 
 # in two arrays in order to draw the polygon later
 #isocnt = save_print_contour(isovist)
+=======
+
+# Print the point of the visibility polygon of 'observer' and save them 
+# in two arrays in order to draw the polygon later
+isocnt = save_print_contour(isovist)
+>>>>>>> ac4120e915960c6afbeedeb09e79ed58dcc1c765
 # Add the first point again because the function to draw, draw a line from
 # one point to the next one and to close the figure we need the last line
 # from the last point to the first one
 
+<<<<<<< HEAD
 #isocnt.append([[int(isovist[0].x()),int(isovist[0].y())]])
 #isocnt = np.asarray(isocnt)
 #print(cnts[0])
@@ -192,3 +242,13 @@ for edge in vis_set:
 cv2.imshow("Image", image)
 cv2.waitKey(0)
 '''
+=======
+isocnt.append([[int(isovist[0].x()),int(isovist[0].y())]])
+isocnt = np.asarray(isocnt)
+#print(cnts[0])
+print(isocnt)
+
+cv2.drawContours(image, [isocnt],-1,(0, 255, 0), 2)
+cv2.imshow("Image", image)
+cv2.waitKey(0)
+>>>>>>> ac4120e915960c6afbeedeb09e79ed58dcc1c765
