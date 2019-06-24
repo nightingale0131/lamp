@@ -132,10 +132,11 @@ class Map(object):
 
         self._features.clear()
         for v in self.G.graph.nodes():
-            observation = self.G.observe(v)
+            observation = self.G.observe(v) # only returns list of visible edges
 
-            for a,b, state in observation:
-                e = (a,b)
+            for e in observation:
+                (a,b) = e
+                state = self.G.graph[a][b]['state']
                 if e not in self._features.keys():
                     self._features[e] = [ {v}, state ]
                 elif self._features[e][1] == state:

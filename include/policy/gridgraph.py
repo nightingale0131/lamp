@@ -7,10 +7,12 @@ import networkx as nx
 import numpy as np
 import cv2
 from matplotlib import pyplot as plt
-from align import alignImages 
 import math
 import random
 import utility
+
+from align import alignImages 
+import visibility as vis
 
 class GridGraph(object):
     """
@@ -271,7 +273,10 @@ class GridGraph(object):
         NOTE TO TRISTAN: feel free to change this however you like, all this does is set
         the visibility to all edges can be viewed from any vertex 
         """
-        return self.graph.edges(data='state')
+        coordinates = self.pos(v)
+        visible_edges = vis.visible_set(self, coordinates) 
+        # return self.graph.edges(data='state')
+        return visible_edges
 
     def _cart_to_pixel(self, pt):
         # Assumes pt is within bounds of occ_grid

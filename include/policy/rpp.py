@@ -296,7 +296,13 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
             is_viewable = True 
 
             for i in belief:
-                if v not in supermaps[i].feature_viewable_from(o.E):
+                try:
+                    if v not in supermaps[i].feature_viewable_from(o.E):
+                        is_viewable = False
+                        break
+                except KeyError:
+                    # if feature doesn't exist/can't be viewed in supermap, then e is not
+                    # a feasible observation
                     is_viewable = False
                     break
 

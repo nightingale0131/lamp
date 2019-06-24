@@ -5,6 +5,7 @@ import imutils
 import numpy as np
 import visilibity as vis
 import numpy.linalg as LA
+import policy.utility as util
 from policy.gridgraph import GridGraph, LiveGridGraph
 
 def ccw(Ax,Ay,Bx,By,Cx,Cy):
@@ -34,6 +35,24 @@ def line_segments_intersect(line1, line2): #https://bryceboe.com/2006/10/23/line
 
 def point_in_polygon(polygon, point):
 	return cv2.pointPolygonTest(polygon, point, measureDist = False) > 0
+
+#https://stackoverflow.com/a/20679579
+def line_eqn(p1, p2):
+    A = (p1[1] - p2[1])
+    B = (p2[0] - p1[0])
+    C = (p1[0]*p2[1] - p2[0]*p1[1])
+    return A, B, -C
+
+def intersection_point(L1, L2):
+    D  = L1[0] * L2[1] - L1[1] * L2[0]
+    Dx = L1[2] * L2[1] - L1[1] * L2[2]
+    Dy = L1[0] * L2[2] - L1[2] * L2[0]
+    if D != 0:
+        x = Dx / D
+        y = Dy / D
+        return x,y
+    else:
+        return False
 
 def visible_set(gridGraph, observationPoint):
 	occGrid = gridGraph.occ_grid.copy()
@@ -79,7 +98,15 @@ def visible_set(gridGraph, observationPoint):
 		visible = point_in_polygon(isocnt,(x1,y1)) and point_in_polygon(isocnt,(x2,y2))
 		#visible = True
 		for i in range(1,len(isocnt)):
-			if line_segments_intersect((isocnt[i-1][0],isocnt[i][0]),((x1,y1),(x2,y2))): visible = False
+			if line_segments_intersect((isocnt[i-1][0],isocnt[i][0]),((x1,y1),(x2,y2))): 
+				visible = False				
+				visIntersect = intersection_point(line_eqn(isocnt[i-1][0],isocnt[i][0]),line_eqn((x1,y1),(x2,y2)))
+				for obstacle in obstacles:
+					for j in range(1,obstacle.n()):
+						if line_segments_intersect(((obstacle[j-1].x(),obstacle[j-1].y()),(obstacle[j].x(),obstacle[j].y())),((x1,y1),(x2,y2))): 
+							obsIntersect = intersection_point(line_eqn((obstacle[j-1].x(),obstacle[j-1].y()),(obstacle[j].x(),obstacle[j].y())),line_eqn((x1,y1),(x2,y2)))
+							if util.euclidean_distance(visIntersect, obsIntersect) < 0.1/gridGraph.img_res:
+								visible = True
 		if visible: 
 			visible_set.append(edge)
 			cv2.line(image,(x1,y1),(x2,y2),0)
@@ -119,6 +146,8 @@ pkgdir = rospack.get_path('policy')
 mapdir = pkgdir + '/maps/'
 pgm0 = mapdir + 'simple1.pgm'
 yaml0 = mapdir + 'simple1.yaml'
+pgm1 = mapdir + 'simple2.pgm'
+yaml1 = mapdir + 'simple2.yaml'
 start = (0.0, 0.0)
 #goal = (4.0, -4.0) #for robohub
 goal = (-8.0, 4.5)
@@ -126,6 +155,6 @@ goal = (-8.0, 4.5)
 # goal = (-6.0, 3.7)
 
 map0 = GridGraph(pgm0, yaml0, goal, graph_res=1.5, robot_width=0.5)
+map1 = GridGraph(pgm1, yaml1, goal, refmap=map0, graph_res=1.5, robot_width=0.5)
 
-
-vis_set = visible_set(map0, (0,0))
+vis_set = visible_set(map1, (0,0))
