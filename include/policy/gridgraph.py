@@ -404,6 +404,27 @@ class GridGraph(object):
 
         return [minx, maxx, miny, maxy]
 
+    def show_img(self):
+        # shows image, need to manually save and close afterwards
+        # UNTESTED
+        pos = nx.get_node_attributes(self.graph, 'pos') # for random graph
+        not_blocked = []
+        unknown=[]
+
+        for edge in list(self.graph.edges()):
+            (u,v) = edge
+            if self.graph[u][v]['state'] == self.UNBLOCKED:
+                not_blocked.append(edge)
+            elif self.graph[u][v]['state'] == self.UNKNOWN:
+                unknown.append(edge)
+
+        fig, ax1 = plt.subplots(1,1)
+        plt.imshow(self.occ_grid, cmap='gray', interpolation='bicubic', extent=self.bounds)
+        nx.draw(self.graph, pos, node_size=20, edgelist=not_blocked, with_labels=True)
+        nx.draw(self.graph, pos, node_size=20, edgelist=unknown, edge_color='g')
+        ax1.set_axis_on()
+        plt.show(block=False)
+
 class LiveGridGraph(GridGraph):
     # child class of GridGraph
     # for capturing info from a live \map feed instead of image
