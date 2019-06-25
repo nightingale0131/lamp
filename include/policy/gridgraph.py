@@ -46,9 +46,8 @@ class GridGraph(object):
         # otherwise align the graph with the new occ grid, assuming the 
         #   origins are all in the same location in ref to the world
         self.occ_grid = cv2.imread(gridfile, cv2.IMREAD_GRAYSCALE)
+        self.obstacles = vis.find_obstacles(self) # for visibility later
         self.origin, self.img_res = get_origin(yamlfile)
-        self.cost_to_goal = {}
-        self.path_to_goal = {}
 
         if refmap==None:
             (self.imgheight, self.imgwidth) = self.occ_grid.shape
@@ -267,15 +266,9 @@ class GridGraph(object):
         return self.graph.nodes()
 
     def observe(self, v):
-        """
-        PLACEHOLDER
-        If robot were to observe from v, return list of edges it should be able to see
-        NOTE TO TRISTAN: feel free to change this however you like, all this does is set
-        the visibility to all edges can be viewed from any vertex 
-        """
+        # returns all edges visible from v
         coordinates = self.pos(v)
-        visible_edges = vis.visible_set(self, coordinates) 
-        # return self.graph.edges(data='state')
+        visible_edges = vis.visible_set(self, coordinates, self.obstacles) 
         return visible_edges
 
     def _cart_to_pixel(self, pt):
