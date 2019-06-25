@@ -17,19 +17,19 @@ def line_segments_intersect(line1, line2): #https://bryceboe.com/2006/10/23/line
 	(x4,y4) = line2[1]
 	if max(x1,x2) < min(x3,x4) or min(x1,x2) > max(x3,x4):
 		return False
-	if x1-x2==0 and x3-x4==0:
-		if x1 != x3: return False 
+        if util.isclose(0, (x1-x2)) and util.isclose(0, (x3-x4)): 
+		if not util.isclose(x1,x3): return False 
 		else: return True
-	elif x1-x2==0:
+        elif util.isclose(0, (x1-x2)):
 		return ccw(x1,y1,x3,y3,x4,y4) != ccw(x2,y2,x3,y3,x4,y4) and ccw(x1,y1,x2,y2,x3,y3) != ccw(x1,y1,x2,y2,x4,y4)
-	elif x3-x4==0:
+        elif util.isclose(0, (x3-x4)):
 		return ccw(x1,y1,x3,y3,x4,y4) != ccw(x2,y2,x3,y3,x4,y4) and ccw(x1,y1,x2,y2,x3,y3) != ccw(x1,y1,x2,y2,x4,y4)
 	else:
 		A1 = (y1-y2)/(x1-x2)
 		A2 = (y3-y4)/(x3-x4)
 		b1 = y1-A1*x1
 		b2 = y3-A2*x2
-		if A1==A2: return False 
+		if util.isclose(A1,A2): return False 
 		else: return ccw(x1,y1,x3,y3,x4,y4) != ccw(x2,y2,x3,y3,x4,y4) and ccw(x1,y1,x2,y2,x3,y3) != ccw(x1,y1,x2,y2,x4,y4)
 
 def point_in_polygon(polygon, point):
@@ -46,7 +46,7 @@ def intersection_point(L1, L2):
     D  = L1[0] * L2[1] - L1[1] * L2[0]
     Dx = L1[2] * L2[1] - L1[1] * L2[2]
     Dy = L1[0] * L2[2] - L1[2] * L2[0]
-    if D != 0:
+    if not util.isclose(0, D):
         x = Dx / D
         y = Dy / D
         return x,y
@@ -102,11 +102,13 @@ def visible_set(gridGraph, observationPoint):
 			if line_segments_intersect((isocnt[i-1][0],isocnt[i][0]),((x1,y1),(x2,y2))): 
                  		visible = False				
 				visIntersect = intersection_point(line_eqn(isocnt[i-1][0],isocnt[i][0]),line_eqn((x1,y1),(x2,y2)))
+                                # if intersection_point returns False here, it means
+                                # the lines are parallel and overlap each other
 				for obstacle in obstacles:
 					for j in range(1,obstacle.n()):
 						if line_segments_intersect(((obstacle[j-1].x(),obstacle[j-1].y()),(obstacle[j].x(),obstacle[j].y())),((x1,y1),(x2,y2))): 
 							obsIntersect = intersection_point(line_eqn((obstacle[j-1].x(),obstacle[j-1].y()),(obstacle[j].x(),obstacle[j].y())),line_eqn((x1,y1),(x2,y2)))
-							if util.euclidean_distance(visIntersect, obsIntersect) < 0.1/gridGraph.img_res:
+                                                        if (visIntersect == False) or (obsIntersect == False) or util.euclidean_distance(visIntersect, obsIntersect) < 0.1/gridGraph.img_res:
 								visible = True
 		if visible: 
 			visible_set.append(edge)
