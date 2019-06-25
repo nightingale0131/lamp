@@ -425,7 +425,8 @@ class GridGraph(object):
 
         fig, ax1 = plt.subplots(1,1)
         plt.imshow(self.occ_grid, cmap='gray', interpolation='bicubic', extent=self.bounds)
-        nx.draw(self.graph, pos, node_size=20, edgelist=not_blocked, with_labels=True)
+        nx.draw(self.graph, pos, node_size=20, edgelist=not_blocked, with_labels=True,
+                font_color='b')
         nx.draw(self.graph, pos, node_size=20, edgelist=unknown, edge_color='g')
         ax1.set_axis_on()
         plt.show(block=False)
