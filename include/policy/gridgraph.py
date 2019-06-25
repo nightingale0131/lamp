@@ -145,7 +145,7 @@ class GridGraph(object):
 
         # TODO: if edge is outside of map bounds, return as unknown
 
-        padding = self.robot_width/2
+        padding = (self.robot_width/2)*1.25
         box = BoundingBox( padding, a, b)
         # calculate boundaries of bounding box to fit in occ_grid boundaries
         (left, right, up, down) = box.mod_bounds(self.bounds)
