@@ -263,7 +263,13 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
         # calculate expected cost
         expected_cost = 0
         for i in belief:
-            cost_to_goal = supermaps[i].get_cost(goal, v)
+            # nx.dijkstra doesn't return nodes in clusters that are disconnected
+            # so if it's not in get_cost, then just set cost_to_goal as infinity (temp
+            # workaround, hopefully there's a better solution
+            try:
+                cost_to_goal = supermaps[i].get_cost(goal, v)
+            except KeyError:
+                cost_to_goal = float('inf')
             if cost_to_goal < float('inf'):
                 # is this still a valid assumption? In LRPP, the cost is not zero
                 # if it is a no goal, it has to check via reactive planner, so
@@ -276,7 +282,11 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
                 # can pick better observations to minimize that path
                 expected_cost += cost_to_goal*p_Xy[i]
 
-        cost_to_v = c_knownG.cost[v]
+        try:
+            cost_to_v = c_knownG.cost[v]
+        except KeyError:
+            cost_to_v = float('inf') # same issue as line 266
+
         cost_v = cost_to_v + expected_cost
 
         logger.debug("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
