@@ -155,18 +155,18 @@ def save_print(polygon):
 
 def save_print_contour(polygon):
     # converts visilibity polygon to cv2 printable contour
-	cnt = []
-	#print ('Points of Polygon: ')
-	for i in range(polygon.n()):
-		x = int(polygon[i].x())
-		y = int(polygon[i].y())
-		cnt.append([[x,y]])
+    cnt = []
+    #print ('Points of Polygon: ')
+    for i in range(polygon.n()):
+        x = int(polygon[i].x())
+        y = int(polygon[i].y())
+        cnt.append([[x,y]])
 
-                if i == 0: init_pt = [[x,y]]
-		#print( x,y) 
+        if i == 0: init_pt = [[x,y]]
+        #print( x,y) 
 
-        cnt.append(init_pt)     # close off polygon
-        cnt = np.asarray(cnt)   # transform into np array
-	return cnt 
+    cnt.append(init_pt)     # close off polygon
+    cnt = np.asarray(cnt)   # transform into np array
+    return cnt 
 
 epsilon = 0.0000001
