@@ -39,6 +39,7 @@ class GridGraph(object):
         self.BLOCKED = 1
         self.UNBLOCKED = 0
         self.UNKNOWN = -1
+        self.MC_SAMPLES = 10 # number of samples to take when doing edge checking
         self.robot_width = robot_width # assuming robot is a square, what is the max_length?
 
         # set up graph as soon as you read occ_grid in
@@ -132,6 +133,150 @@ class GridGraph(object):
         else:
             return float('inf')
 
+    def _mc_edge_check(self, edge):
+        (u,v) = edge
+        a = self.graph.node[u]['pos']
+        b = self.graph.node[v]['pos']
+
+        logger.info('Checking edge {}'.format(edge))
+        # logger.info('Checking edge (({:.3f}, {:.3f}),({:.3f}, {:.3f}))'
+                    # .format(a[0], a[1], b[0], b[1])) 
+
+        # check inflated box
+        padding = self.robot_width/2
+        inflated_box = BoundingBox( padding*2, a, b)
+
+        inflated_box_state = self._box_check(inflated_box)
+
+        if inflated_box_state == self.UNBLOCKED:
+            # avoid MC check if nowhere close to an obstacle
+            prob_free = 1.0
+            prob_unknown = 0.0
+        elif inflated_box_state == self.UNKNOWN:
+            # will need to revisit this
+            prob_free = 0.5
+            prob_unknown = 1.0
+        elif inflated_box_state == self.BLOCKED:
+            n_unblocked = 0
+            n_unknown = 0
+            mean = [0,0]
+            cov = [[0.1,0],[0,0.1]]
+
+            for n in range(self.MC_SAMPLES):
+                if n == 0: (dx, dy) = mean
+                else:
+                    (dx, dy) = np.random.multivariate_normal(mean, cov)
+
+                a_bar = (a[0] + dx, a[1] + dy)
+                b_bar = (b[0] + dx, b[1] + dy)
+
+                box = BoundingBox(padding*1.25, a_bar, b_bar)
+                box_state = self._box_check(box)
+
+                if box_state == self.UNBLOCKED: n_unblocked += 1
+                elif box_state == self.UNKNOWN: n_unknown += 1
+
+            prob_free = float(n_unblocked)/self.MC_SAMPLES
+            prob_unknown = float(n_unknown)/self.MC_SAMPLES
+
+        logger.info("\tP(free) = {:.3f}, P(unknown)  = {:.3f}"
+                .format(prob_free, prob_unknown))
+
+        # return prob_free, prob_unknown
+        self.graph[u][v]['prob'] = prob_free
+        self.graph[u][v]['dist'] = self.dist(u,v)
+
+        # Thresholding of edges to states
+        if prob_free < 0.3: self.graph[u][v]['state'] = self.BLOCKED
+        elif prob_unknown > 0.5: 
+            self.graph[u][v]['state'] = self.UNKNOWN
+            self.graph[u][v]['prob'] = 0.5 
+        elif prob_free > 0.7: self.graph[u][v]['state'] = self.UNBLOCKED
+        else: self.graph[u][v]['state'] = self.UNKNOWN
+
+        # for nx
+        self.graph[u][v]['weight'] = self.weight(u,v)
+        self.graph[u][v]['knownWeight'] = self.known_weight(u,v)
+
+    def _box_check(self, box):
+        # get bounding box on graph edge
+        (minx, maxx, miny, maxy) = self.bounds
+        # calculate boundaries of bounding box to fit in occ_grid boundaries
+        (left, right, up, down) = box.mod_bounds(self.bounds)
+        if left == None or right == None or up == None or down == None:
+            # this means the bounding box is completely outside grid boundaries
+            return self.UNKNOWN
+
+        # Calculate which pixels need to be checked, these pixels have to be included
+        # (0,0) is in top left of image
+        leftpx = int(abs(left-minx)/self.img_res)
+        rightpx = min(int(abs(right-minx)/self.img_res), self.imgwidth - 1)
+        toppx = int(abs(maxy - up)/self.img_res)
+        downpx = min(int(abs(maxy - down)/self.img_res), self.imgheight - 1)
+
+        logger.debug('\tleft={:.3f}, right={:.3f}, top={:.3f}, down={:.3f}'
+                    .format(box.left[0], box.right[0], box.top[1], box.bottom[1]))
+        logger.debug('\tleft={:.3f}, right={:.3f}, top={:.3f}, down={:.3f}'
+                    .format(left, right, up, down))
+        logger.debug('\tIn pixels: left={}, right={}, top={}, down={}'
+                    .format(leftpx, rightpx, toppx, downpx))
+
+        pxbounds = [leftpx, rightpx, toppx, downpx]
+
+        # Do probability check to see state of edge, assign to edge attribute
+        # pixel mapping: 0 - unknown, otherwise x/255 to get probability of pixel being
+        #               FREE 
+
+        k = 0.0 # number of unknown pixels
+        n = 0.0 # number of pixels in bounding box
+
+        prob_free = 1
+        for col in xrange(leftpx, rightpx + 1):
+            # calc Y range of slice, consider both sides of pixel
+            # clamp Y to border of image, and x to bounding box left & right
+            leftx = max(col*self.img_res + minx, left)
+            rightx = min((col + 1)*self.img_res + minx, right)
+
+            # dealing with case where corner is in pixel
+            if box.top[0] > leftx and box.top[0] < rightx:
+                slice_topy = box.top[1]
+            else:
+                slice_topy = max(box.maxY(leftx), box.maxY(rightx))
+
+            if box.bottom[0] > leftx and box.bottom[0] < rightx:
+                slice_boty = box.bottom[1]
+            else:
+                slice_boty = min(box.minY(leftx), box.minY(rightx))
+
+            toppx = max(int((maxy - slice_topy)/self.img_res), 0)
+            downpx = min(int(abs(maxy - slice_boty)/self.img_res), self.imgheight - 1)
+            # print("toppx: {}, slice_topy: {:.3f}"
+                  # .format(toppx, slice_topy, maxy))
+            # print("downpx: {}, slice_boty: {:3f}".format(downpx, slice_boty))
+
+            for row in xrange(toppx, downpx + 1):
+                p = self.occ_grid[row,col]/254.0
+                n += 1
+                if p == 0:
+                    p = 1
+                    k += 1
+                elif p > 0.60: p = 1
+
+                prob_free = prob_free*p
+
+        # Assign the following states to the edge:
+        # 0:unblocked, 1:blocked, -1:unknown
+        prob_unknown = float(k)/n
+        logger.debug("\tP(free) = {:.3f}, P(unknown)  = {:.3f}"
+                .format(prob_free, prob_unknown))
+        
+        # Thresholding of edges to states
+        # The following is problematic/too simple
+        if prob_free < 0.2: return self.BLOCKED
+        elif prob_unknown > 0.5:  return self.UNKNOWN
+        elif prob_free > 0.7: return self.UNBLOCKED
+        else: return self.UNKNOWN
+
     def _edge_check(self, edge):
         # get bounding box on graph edge
         (minx, maxx, miny, maxy) = self.bounds
@@ -149,6 +294,15 @@ class GridGraph(object):
         box = BoundingBox( padding, a, b)
         # calculate boundaries of bounding box to fit in occ_grid boundaries
         (left, right, up, down) = box.mod_bounds(self.bounds)
+        if left == None or right == None or up == None or down == None:
+            # this means the bounding box is completely outside grid boundaries
+            self.graph[u][v]['prob'] = 0.5
+            self.graph[u][v]['dist'] = self.dist(u,v)
+            self.graph[u][v]['state'] = self.UNKNOWN
+
+            # for nx
+            self.graph[u][v]['weight'] = self.weight(u,v)
+            return
 
         # Calculate which pixels need to be checked, these pixels have to be included
         # (0,0) is in top left of image
@@ -209,7 +363,7 @@ class GridGraph(object):
             else:
                 slice_boty = min(box.minY(leftx), box.minY(rightx))
 
-            toppx = int(abs(maxy - slice_topy)/self.img_res)
+            toppx = max(int((maxy - slice_topy)/self.img_res), 0)
             downpx = min(int(abs(maxy - slice_boty)/self.img_res), self.imgheight - 1)
 
             for row in xrange(toppx, downpx + 1):
@@ -249,7 +403,7 @@ class GridGraph(object):
     def _collision_check(self, modify=False):
         # do collision checking on all edges
         for edge in list(self.graph.edges()):
-            self._edge_check(edge)
+            self._mc_edge_check(edge)
 
         # The following removes singletons and blocked edges
         # Should only be run in init run
@@ -580,29 +734,34 @@ class BoundingBox(object):
         # assuming bounds = [minx, maxx, miny, maxy]
         # Given these bounds (must be rectangle), determine the left, right, top, bottom
         # of the bounding box such that it is completely contained in the bounds
+        # if box is outside of bounds, will return None values
 
         [minx, maxx, miny, maxy] = bounds
 
         # left
         if self.left[0] < minx: left = minx
+        elif self.left[0] > maxx: left = None
         elif self.left[1] > maxy: left = self.minX(maxy)
         elif self.left[1] < miny: left = self.minX(miny)
         else: left = self.left[0]
 
         # right
         if self.right[0] > maxx: right = maxx 
+        elif self.right[0] < minx: right = None
         elif self.right[1] > maxy: right = self.maxX(maxy)
         elif self.right[1] < miny: right = self.maxX(miny)
         else: right = self.right[0]
 
         # top
         if self.top[1] > maxy: top = maxy
+        elif self.top[1] < miny: top = None
         elif self.top[0] < minx: top = self.maxY(minx)
         elif self.top[0] > maxx: top = self.maxY(maxx)
         else: top = self.top[1]
 
         # bottom
         if self.bottom[1] < miny: bottom = miny
+        elif self.bottom[1] > maxy: bottom = None
         elif self.bottom[0] < minx: bottom = self.minY(minx)
         elif self.bottom[0] > maxx: bottom = self.minY(maxx)
         else: bottom = self.bottom[1]
