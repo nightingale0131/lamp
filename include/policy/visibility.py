@@ -73,7 +73,7 @@ def find_obstacles(gridgraph):
             points.append(vis.Point(float(p[0][0]),float(p[0][1])))
 
         obstacle = vis.Polygon(points)
-        obstacle.eliminate_redundant_vertices(1)
+        obstacle.eliminate_redundant_vertices(2)
         obstacles.append(obstacle)
 
     return obstacles
