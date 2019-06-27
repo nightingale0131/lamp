@@ -13,6 +13,7 @@ import utility
 
 from align import alignImages 
 import visibility as vis
+import timing
 
 class GridGraph(object):
     """
@@ -48,6 +49,7 @@ class GridGraph(object):
         #   origins are all in the same location in ref to the world
         self.occ_grid = cv2.imread(gridfile, cv2.IMREAD_GRAYSCALE)
         self.obstacles = vis.find_obstacles(self) # for visibility later
+        timing.log("Finished finding obstacles")
         self.origin, self.img_res = get_origin(yamlfile)
 
         if refmap==None:
@@ -69,6 +71,7 @@ class GridGraph(object):
             self._collision_check()
 
         # check which edges are blocked/unblocked
+        timing.log("Finished collision check")
         logger.info('Finished initialization')
 
     def _align(self, refimg):
@@ -403,6 +406,7 @@ class GridGraph(object):
     def _collision_check(self, modify=False):
         # do collision checking on all edges
         for edge in list(self.graph.edges()):
+            # self._edge_check(edge)
             self._mc_edge_check(edge)
 
         # The following removes singletons and blocked edges

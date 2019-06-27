@@ -11,10 +11,12 @@ logger = logging.getLogger(__name__)
 from openloop import MoveBaseSeq
 import rospy, rospkg 
 import os, glob
+import networkx as nx
 
 from policy.gridgraph import GridGraph
 from policy.classes import Map
 from policy import rpp
+from policy import timing
 
 def update_p_est(M,t):
     """ Return updated estimated prob distribution
@@ -46,10 +48,12 @@ def import_maps(folder, supermaps, goal):
             # assume 00 is the zero map
             gridgraph = GridGraph(pgm_path, yaml_path, goal, graph_res=1.5) 
             supermaps.append(Map(gridgraph))
+            timing.log("Finished visibility check")
         else:
             gridgraph = GridGraph(pgm_path, yaml_path, goal,
                     refmap=supermaps[0].G)
             supermaps.append(Map(gridgraph))
+            timing.log("Finished visibility check")
 
     print("Imported {} maps.".format(count))
 
@@ -58,7 +62,8 @@ if __name__ == '__main__':
     pkgdir = rospack.get_path('policy')
     mapdir = pkgdir + '/maps/'
     start = (0.0, 0.0)
-    goal = (-8.0, 4.5)
+    goal = (4.0, -4.0) # for robohub
+    # goal = (-8.0, 4.5)
 
     # enable logging other than roslog
     logging.basicConfig(filename = pkgdir + '/lrpp_debug.log', filemode='w',
@@ -67,14 +72,17 @@ if __name__ == '__main__':
     # import maps
     M = []
     import_maps(mapdir, M, goal)
-    p = update_p_est(M, 5) # pmf of maps is hard coded right now
+    p = update_p_est(M, 3) # pmf of maps is hard coded right now
     features = M[0].features()
     base_map = M[0].G
+    base_map.show_img()
+    # nx.write_adjlist(base_map.graph, pkgdir + '/src/map0.adjlist')
 
     # run rpp
     policy = rpp.solve_RPP(M, p, features, M[0].G.start, M[0].G.goal)
     logging.info(policy[0].print_policy())
 
+    raw_input('Press any key to begin execution')
     # execute policy
     try:
         MoveBaseSeq(base_map, policy=policy)
