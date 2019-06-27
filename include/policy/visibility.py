@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+import logging
+logger = logging.getLogger(__name__)
+
 import cv2
 import rospy, rospkg
 import imutils
@@ -73,7 +76,7 @@ def find_obstacles(gridgraph):
             points.append(vis.Point(float(p[0][0]),float(p[0][1])))
 
         obstacle = vis.Polygon(points)
-        obstacle.eliminate_redundant_vertices(2)
+        obstacle.eliminate_redundant_vertices(redundant_eps)
         obstacles.append(obstacle)
 
     return obstacles
@@ -93,6 +96,9 @@ def visible_set(gridGraph, observationPoint, obstacles):
 
     # get visibility polygon
     isovist = vis.Visibility_Polygon(observer, env, epsilon)
+    if isovist.n() == 0: logger.warn('Visibility polygon is empty!')
+
+    isovist.eliminate_redundant_vertices(redundant_eps)
     isocnt = save_print_contour(isovist)
 
     # prep visualization
@@ -102,6 +108,11 @@ def visible_set(gridGraph, observationPoint, obstacles):
 
     # find visible edges
     visible_set = []
+
+    if len(isocnt) == 0: 
+        logger.warn('Simplified visibility polygon is empty!')
+        return visible_set
+
     for edge in list(gridGraph.graph.edges()):
         (node1,node2) = edge
         (xloc1, yloc1) = gridGraph.graph.node[node1]['pos']
@@ -156,17 +167,18 @@ def save_print(polygon):
 def save_print_contour(polygon):
     # converts visilibity polygon to cv2 printable contour
     cnt = []
-    #print ('Points of Polygon: ')
+    # print ('Points of Polygon: ')
     for i in range(polygon.n()):
         x = int(polygon[i].x())
         y = int(polygon[i].y())
         cnt.append([[x,y]])
 
         if i == 0: init_pt = [[x,y]]
-        #print( x,y) 
+        # print(i,x,y) 
 
-    cnt.append(init_pt)     # close off polygon
+    if polygon.n() > 0: cnt.append(init_pt)     # close off polygon
     cnt = np.asarray(cnt)   # transform into np array
     return cnt 
 
 epsilon = 0.0000001
+redundant_eps = 2

@@ -5,7 +5,6 @@ Creation date: 2018-08-14
 Compatible with Python 2.7
 
 Contains main RPP solvers and additional functions
-Convert this into a module afterwards
 """
 
 #!/usr/bin/env python2
