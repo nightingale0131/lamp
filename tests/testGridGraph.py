@@ -133,22 +133,27 @@ def check_map_agreement(GG1, GG2):
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
     logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.INFO)
+    mapdir = testpath + '/results/robohub/'
+    file1 = mapdir + '/00'
+    file2 = mapdir + '/01'
+    # goal = (-8, 4.5)
+    goal = (4.0, -4.0)
 
     # build base graph on initial map 
-    pgm = testpath + '/maps/robohub.pgm'
-    yaml = testpath + '/maps/robohub.yaml'
-    nav_graph = GridGraph(pgm, yaml, (4, -4), graph_res=1.5, robot_width=0.5)
-    cv2.imwrite(testpath + '/cv2_img.jpg', nav_graph.occ_grid)
+    pgm = file1 + '.pgm'
+    yaml = file1 + '.yaml'
+    nav_graph = GridGraph(pgm, yaml, goal, graph_res=1.5, robot_width=0.5)
+    # cv2.imwrite(testpath + '/cv2_img.jpg', nav_graph.occ_grid)
     print(nx.info(nav_graph.graph))
-    nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
+    # nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
 
     # overlay grid on image
     show_init_graph(nav_graph)
 
     # save new occ grid as GridGraph with refmap graph overlaid on top 
-    otherpgm = testpath + '/maps/robohub_trial_empty.pgm'
-    otheryaml = testpath + '/maps/robohub_trial_empty.yaml'
-    other = GridGraph(otherpgm, otheryaml, (-8, 4.5), refmap=nav_graph, robot_width=0.5)
+    otherpgm = file2 + '.pgm'
+    otheryaml = file2+ '.yaml'
+    other = GridGraph(otherpgm, otheryaml, goal, refmap=nav_graph, robot_width=0.5)
     show_comparison(nav_graph, other)
 
     """
@@ -185,4 +190,15 @@ if __name__ == '__main__':
     print(path)
 
     check_map_agreement(nav_graph, other)
+    
+    """
+    # check mc_edge_check
+    (a,b) = (172,60)
+    print("old edge state: {}".format(nav_graph.graph[a][b]['state']))
+    print("old edge prob: {:.3f}".format(nav_graph.graph[a][b]['prob']))
+    prob_free, prob_unknown = nav_graph._mc_edge_check((a,b))
+    print("mc edge free prob: {:.3f}".format(prob_free))
+    print("mc edge unknown prob: {:.3f}".format(prob_unknown))
+    """
+
     raw_input('Press any key to continue')
