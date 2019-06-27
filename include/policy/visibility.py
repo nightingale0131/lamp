@@ -96,7 +96,8 @@ def visible_set(gridGraph, observationPoint, obstacles):
 
     # get visibility polygon
     isovist = vis.Visibility_Polygon(observer, env, epsilon)
-    if isovist.n() == 0: logger.warn('Visibility polygon is empty!')
+    if isovist.n() == 0: 
+        logger.warn('Visibility polygon is empty for ()!'.format(observationPoint))
 
     isovist.eliminate_redundant_vertices(redundant_eps)
     isocnt = save_print_contour(isovist)
@@ -110,7 +111,7 @@ def visible_set(gridGraph, observationPoint, obstacles):
     visible_set = []
 
     if len(isocnt) == 0: 
-        logger.warn('Simplified visibility polygon is empty!')
+        logger.warn('Simplified visibility polygon is empty for ()!'.format(observationPoint))
         return visible_set
 
     for edge in list(gridGraph.graph.edges()):
