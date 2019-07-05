@@ -15,6 +15,8 @@ from align import alignImages
 import visibility as vis
 import timing
 
+MC_SAMPLES = 10 # number of samples to take when doing edge checking
+
 class GridGraph(object):
     """
     Combines occupancy grid and graph.
@@ -40,8 +42,10 @@ class GridGraph(object):
         self.BLOCKED = 1
         self.UNBLOCKED = 0
         self.UNKNOWN = -1
-        self.MC_SAMPLES = 10 # number of samples to take when doing edge checking
         self.robot_width = robot_width # assuming robot is a square, what is the max_length?
+        self.num_vertices = 300
+        self.halton_a = 2
+        self.halton_b = 7
 
         # set up graph as soon as you read occ_grid in
         # if graph=None then build a graph
@@ -55,7 +59,7 @@ class GridGraph(object):
         if refmap==None:
             (self.imgheight, self.imgwidth) = self.occ_grid.shape
             self.bounds = self.calc_bounding_coord()
-            self.graph = self.build_graph(graph_res, (0,0), goal, n=200)
+            self.graph = self.build_graph(graph_res, (0,0), goal, n=self.num_vertices)
             self._collision_check(True)
             logger.info('Built graph')
         else:
@@ -165,7 +169,7 @@ class GridGraph(object):
             mean = [0,0]
             cov = [[0.1,0],[0,0.1]]
 
-            for n in range(self.MC_SAMPLES):
+            for n in range(MC_SAMPLES):
                 if n == 0: (dx, dy) = mean
                 else:
                     (dx, dy) = np.random.multivariate_normal(mean, cov)
@@ -173,14 +177,15 @@ class GridGraph(object):
                 a_bar = (a[0] + dx, a[1] + dy)
                 b_bar = (b[0] + dx, b[1] + dy)
 
-                box = BoundingBox(padding*1.25, a_bar, b_bar)
+                box = BoundingBox(padding*1.3, a_bar, b_bar)
+                # default inflation in costmap is 0.3
                 box_state = self._box_check(box)
 
                 if box_state == self.UNBLOCKED: n_unblocked += 1
                 elif box_state == self.UNKNOWN: n_unknown += 1
 
-            prob_free = float(n_unblocked)/self.MC_SAMPLES
-            prob_unknown = float(n_unknown)/self.MC_SAMPLES
+            prob_free = float(n_unblocked)/MC_SAMPLES
+            prob_unknown = float(n_unknown)/MC_SAMPLES
 
         logger.info("\tP(free) = {:.3f}, P(unknown)  = {:.3f}"
                 .format(prob_free, prob_unknown))
@@ -293,7 +298,7 @@ class GridGraph(object):
 
         # TODO: if edge is outside of map bounds, return as unknown
 
-        padding = (self.robot_width/2)*1.25
+        padding = (self.robot_width/2)#*1.25
         box = BoundingBox( padding, a, b)
         # calculate boundaries of bounding box to fit in occ_grid boundaries
         (left, right, up, down) = box.mod_bounds(self.bounds)
@@ -477,7 +482,7 @@ class GridGraph(object):
             elif opt == 'smartrand':
                 pos = self.sample_points(n)
             elif opt == 'halton':
-                pos = self.halton_sample(n, 2, 7)
+                pos = self.halton_sample(n, self.halton_a, self.halton_b)
             else:
                 logger.error('Not a valid option!')
 
@@ -744,31 +749,35 @@ class BoundingBox(object):
 
         # left
         if self.left[0] < minx: left = minx
-        elif self.left[0] > maxx: left = None
         elif self.left[1] > maxy: left = self.minX(maxy)
         elif self.left[1] < miny: left = self.minX(miny)
         else: left = self.left[0]
 
+        if left > maxx: left = None
+
         # right
         if self.right[0] > maxx: right = maxx 
-        elif self.right[0] < minx: right = None
         elif self.right[1] > maxy: right = self.maxX(maxy)
         elif self.right[1] < miny: right = self.maxX(miny)
         else: right = self.right[0]
 
+        if right < minx: right = None
+
         # top
         if self.top[1] > maxy: top = maxy
-        elif self.top[1] < miny: top = None
         elif self.top[0] < minx: top = self.maxY(minx)
         elif self.top[0] > maxx: top = self.maxY(maxx)
         else: top = self.top[1]
 
+        if top < miny: top = None
+
         # bottom
         if self.bottom[1] < miny: bottom = miny
-        elif self.bottom[1] > maxy: bottom = None
         elif self.bottom[0] < minx: bottom = self.minY(minx)
         elif self.bottom[0] > maxx: bottom = self.minY(maxx)
         else: bottom = self.bottom[1]
+
+        if bottom > maxy: bottom = None
  
         return (left, right, top, bottom)
 
