@@ -54,7 +54,7 @@ def get_knownG(features, supermaps, belief):
         # if is_known: known_features[feature] = state
         (a,b) = feature
         knownG.add_edge(a,b)
-        if is_known and state == base_map.G.UNBLOCKED: 
+        if is_known and state != base_map.G.BLOCKED: 
             # assuming feature is an edge that looks like (a,b)
             knownG[a][b]['weight'] = base_map.G.weight(a,b) 
         else:
@@ -291,7 +291,11 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
         logger.debug("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
                 .format(c_knownG.cost[goal], v, cost_v))
         if cost_v == float('inf'): continue # v is not reachable if cost is infinite
-        if c_knownG.cost[goal] > cost_v and not isclose(c_knownG.cost[goal], cost_v):
+        if c_knownG.cost[goal] == float('inf'):
+            # need this because isclose(inf, 10) returns True
+            # to reach this point cost_v must be a finite number
+            reachable_v[v] = cost_v
+        elif c_knownG.cost[goal] > cost_v and not isclose(c_knownG.cost[goal], cost_v):
             reachable_v[v]= cost_v
 
     logger.debug('reachable_v = {}'.format(reachable_v))
