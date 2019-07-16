@@ -43,7 +43,7 @@ class GridGraph(object):
         self.UNBLOCKED = 0
         self.UNKNOWN = -1
         self.robot_width = robot_width # assuming robot is a square, what is the max_length?
-        self.num_vertices = 300
+        self.num_vertices = 150
         self.halton_a = 2
         self.halton_b = 7
 
@@ -67,9 +67,9 @@ class GridGraph(object):
             self.start = refmap.start
             self.goal = refmap.goal
             logger.info('Imported graph')
-            # self._align(refmap.occ_grid)
-            # self.origin = refmap.origin
-            # logger.debug('Modified origin: {}'.format(self.origin))
+            self._align(refmap.occ_grid) # garbage, doesn't work
+            self.origin = refmap.origin
+            logger.debug('Modified origin: {}'.format(self.origin))
             (self.imgheight, self.imgwidth) = self.occ_grid.shape
             self.bounds = self.calc_bounding_coord()
             self._collision_check()
@@ -540,14 +540,25 @@ class GridGraph(object):
         # returns n halton samples in 2-d 
         # xb, yb are the bases for each dimension respectively, must be PRIME
         (minx, maxx, miny, maxy) = self.bounds
+        padding = self.robot_width/2
 
         pos = dict()
-        i = 0
+        i = 0 # number of entries in pos
+        h = 0 # halton index
         # for each halton point, multiply by width or height and translate as needed
-        for i in xrange(n):
-            x = halton_seq(i,xb)*(maxx - minx) + minx
-            y = halton_seq(i,yb)*(maxy - miny) + miny
-            pos.update({i: (x,y)})
+        while len(pos) != n: 
+            x = halton_seq(h,xb)*(maxx - minx) + minx
+            y = halton_seq(h,yb)*(maxy - miny) + miny
+
+            # add check for each sample
+            box = BoundingBox( padding, (x,y))
+            box_state = self._box_check(box)
+            
+            if box_state == self.UNBLOCKED:
+                pos.update({i: (x,y)})
+                i += 1
+
+            h += 1
 
         return pos
 

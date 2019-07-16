@@ -137,9 +137,13 @@ if __name__ == '__main__':
     file1 = mapdir + '/00'
     file2 = mapdir + '/01'
     file3 = mapdir + '/02'
-    # goal = (-8, 4.5)
-    # goal = (4.0, -4.0)
-    goal = (10, 8)
+    # goal = (-8, 4.5) # simple
+    # goal = (4.0, -4.0) # robohub
+    goal = (10, 8) # test2
+    # goal = (-0.7, 8)
+    # goal = (5.5, 2.0)
+    # goal = (0.0, -20.0)
+    # goal = (8.0, 0.0)
 
     # build base graph on initial map 
     pgm = file1 + '.pgm'
@@ -150,7 +154,7 @@ if __name__ == '__main__':
     # nx.write_adjlist(nav_graph.graph, "test.adjlist", delimiter=',')
 
     # overlay grid on image
-    show_init_graph(nav_graph)
+    nav_graph.show_img()
 
     # save new occ grid as GridGraph with refmap graph overlaid on top 
     otherpgm = file2 + '.pgm'
@@ -182,7 +186,6 @@ if __name__ == '__main__':
         if i < -0.5: count +=1
 
     print("num of diff < -0.5: {}".format(count))
-    """
 
     # test weights
     # check_weights(nav_graph)
@@ -195,16 +198,15 @@ if __name__ == '__main__':
     # path = util.reconstruct_path(came_from, nav_graph.start, nav_graph.goal)
     # print(path)
 
+    """
     check_map_agreement(map3, other)
     
-    """
     # check mc_edge_check
-    (a,b) = (172,60)
-    print("old edge state: {}".format(nav_graph.graph[a][b]['state']))
-    print("old edge prob: {:.3f}".format(nav_graph.graph[a][b]['prob']))
-    prob_free, prob_unknown = nav_graph._mc_edge_check((a,b))
-    print("mc edge free prob: {:.3f}".format(prob_free))
-    print("mc edge unknown prob: {:.3f}".format(prob_unknown))
-    """
+    # (a,b) = (172,60)
+    # print("old edge state: {}".format(nav_graph.graph[a][b]['state']))
+    # print("old edge prob: {:.3f}".format(nav_graph.graph[a][b]['prob']))
+    # prob_free, prob_unknown = nav_graph._mc_edge_check((a,b))
+    # print("mc edge free prob: {:.3f}".format(prob_free))
+    # print("mc edge unknown prob: {:.3f}".format(prob_unknown))
 
     raw_input('Press any key to continue')
