@@ -133,11 +133,13 @@ def check_map_agreement(GG1, GG2):
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
     logging.basicConfig(filename=testpath + '/debug.log', filemode='w',level=logging.INFO)
-    mapdir = testpath + '/results/robohub/'
+    mapdir = testpath + '/results/test2'
     file1 = mapdir + '/00'
     file2 = mapdir + '/01'
+    file3 = mapdir + '/02'
     # goal = (-8, 4.5)
-    goal = (4.0, -4.0)
+    # goal = (4.0, -4.0)
+    goal = (10, 8)
 
     # build base graph on initial map 
     pgm = file1 + '.pgm'
@@ -154,7 +156,11 @@ if __name__ == '__main__':
     otherpgm = file2 + '.pgm'
     otheryaml = file2+ '.yaml'
     other = GridGraph(otherpgm, otheryaml, goal, refmap=nav_graph, robot_width=0.5)
-    show_comparison(nav_graph, other)
+
+    pgm3 = file3 + '.pgm'
+    yaml3 = file3 + '.yaml'
+    map3 = GridGraph(pgm3, yaml3, goal, refmap=nav_graph, robot_width=0.5)
+    show_comparison(other, map3)
 
     """
     # calculate all pairs shortest path
@@ -185,11 +191,11 @@ if __name__ == '__main__':
     # check_neighbours(nav_graph)
 
     # check_blur(nav_graph)
-    came_from, cost = util.a_star_search(nav_graph, nav_graph.start, nav_graph.goal)
-    path = util.reconstruct_path(came_from, nav_graph.start, nav_graph.goal)
-    print(path)
+    # came_from, cost = util.a_star_search(nav_graph, nav_graph.start, nav_graph.goal)
+    # path = util.reconstruct_path(came_from, nav_graph.start, nav_graph.goal)
+    # print(path)
 
-    check_map_agreement(nav_graph, other)
+    check_map_agreement(map3, other)
     
     """
     # check mc_edge_check
