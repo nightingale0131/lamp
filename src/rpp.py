@@ -4,7 +4,7 @@ use MoveBaseSeq class from
 - reminder: move base seq takes in a path and executes it
       but if path is blocked it will use openloop to try to get to the goal (map.goal)
 
-This is for multiple task executions
+for now just do one task execution given maps
 """
 import logging
 logger = logging.getLogger(__name__) 
@@ -31,12 +31,12 @@ def update_p_est(M,t):
 
     return p
 
-def import_base_map(folder, goal):
-    # imports only 00 pgm/yaml file as base map
+def import_maps(folder, supermaps, goal):
+    # imports all pgm/yaml files in folder
     # assumes they are all for the same environment and start/goal is the same
-
-    supermaps = []
+    count = 0 
     for pgm_path in sorted(glob.glob(folder + "/*.pgm")):
+        count += 1
 
         # get yaml file as well
         (root, ext) = os.path.splitext(pgm_path)
@@ -44,31 +44,18 @@ def import_base_map(folder, goal):
         print(pgm_path)
         print(yaml_path)
 
-        if root == '00':
+        if count == 1:
             # assume 00 is the zero map
             gridgraph = GridGraph(pgm_path, yaml_path, goal, graph_res=1.5) 
             supermaps.append(Map(gridgraph))
             timing.log("Finished visibility check")
-            break
+        else:
+            gridgraph = GridGraph(pgm_path, yaml_path, goal,
+                    refmap=supermaps[0].G)
+            supermaps.append(Map(gridgraph))
+            timing.log("Finished visibility check")
 
-    print("Imported base map.".format(count))
-    return supermaps
-
-def map_filter(supermaps, mapdir):
-    # first, convert new map into a map type var
-    n = len(supermaps)
-    filepath = mapdir + "{:02d}".format(n) # assuming t < 100
-    os.system("rosrun map_server map_saver -f " + filepath)
-
-    gridgraph = GridGraph(filepath + ".pgm", filepath + ".yaml", goal,
-            refmap=supermaps[0].G)
-    new_map = Map(gridgraph)
-
-    # now do comparisons and map merging??
-
-    # do no comparisons and just save the new map lol
-    supermaps.append(new_map)
-
+    print("Imported {} maps.".format(count))
 
 if __name__ == '__main__':
     rospack = rospkg.RosPack()
@@ -81,36 +68,33 @@ if __name__ == '__main__':
     # goal = (-0.7, 8)
     # goal = (8, 0) # for maze
     goal = (8.5, 8.0) # for maze
-    ntasks = 10
 
     # enable logging other than roslog
     logging.basicConfig(filename = pkgdir + '/lrpp_debug.log', filemode='w',
             level=logging.INFO)
 
-    # import base map 
-    M = import_base_map(mapdir, goal)
+    # import maps
+    M = []
+    import_maps(mapdir, M, goal)
+    p = update_p_est(M, 2) # pmf of maps is hard coded right now
     features = M[0].features()
     base_map = M[0].G
     base_map.show_img()
     # nx.write_adjlist(base_map.graph, pkgdir + '/src/map0.adjlist')
 
-    for t in xrange(ntasks):
-        logging.info("================================================")
-        logging.info(" Start of task {}".format(t))
-        logging.info("================================================")
+    # run rpp
+    policy = rpp.solve_RPP(M, p, features, M[0].G.start, M[0].G.goal)
+    logging.info(policy[0].print_policy())
+    """
+    raw_input('Press any key to begin execution')
+    # execute policy
+    try:
+        MoveBaseSeq(base_map, policy=policy)
+    except rospy.ROSInterruptException:
+        rospy.loginfo("Navigation finished.")
 
-        p = update_p_est(M, t) 
-
-        # run rpp
-        policy = rpp.solve_RPP(M, p, features, M[0].G.start, M[0].G.goal)
-        logging.info(policy[0].print_policy())
-
-        raw_input('Policy ready for task {}. Press any key to begin execution'.format(t))
-        # execute policy
-        try:
-            MoveBaseSeq(base_map, policy=policy)
-        except rospy.ROSInterruptException:
-            rospy.loginfo("Navigation finished.")
-
-        # update map memory
-        map_filter(M, mapdir)
+    # save pgm/yaml file of map
+    os.system("rosrun map_server map_saver -f " + mapdir + "test")
+    # shut down cartographer
+    os.system("rosnode kill /cartographer_node /cartographer_occupancy_grid_node /move_base")
+    """
