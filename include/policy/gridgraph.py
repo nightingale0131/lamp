@@ -15,7 +15,7 @@ from align import alignImages
 import visibility as vis
 import timing
 
-MC_SAMPLES = 10 # number of samples to take when doing edge checking
+MC_SAMPLES = 20 # number of samples to take when doing edge checking
 
 class GridGraph(object):
     """
@@ -23,7 +23,8 @@ class GridGraph(object):
         Note: I need to keep the occupancy grid if I intend to align images to ensure the
         same reference point is kept.
     """
-    def __init__(self, gridfile, yamlfile, goal, refmap=None, graph_res=0.5, robot_width=0.5):
+    def __init__(self, gridfile, yamlfile, goal, refmap=None, graph_res=0.5,
+            robot_width=0.5, custom_graph=None):
         logger.info('Initializing {}'.format(gridfile))
         """
           refmap - reference GridGraph obj
@@ -43,7 +44,7 @@ class GridGraph(object):
         self.UNBLOCKED = 0
         self.UNKNOWN = -1
         self.robot_width = robot_width # assuming robot is a square, what is the max_length?
-        self.num_vertices = 150
+        self.num_vertices = 200 
         self.halton_a = 2
         self.halton_b = 7
 
@@ -59,7 +60,11 @@ class GridGraph(object):
         if refmap==None:
             (self.imgheight, self.imgwidth) = self.occ_grid.shape
             self.bounds = self.calc_bounding_coord()
-            self.graph = self.build_graph(graph_res, (0,0), goal, n=self.num_vertices)
+            if custom_graph != None:
+                self.graph = self.build_graph(graph_res, (0,0), goal, opt='custom',
+                        custom=custom_graph)
+            else:
+                self.graph = self.build_graph(graph_res, (0,0), goal, n=self.num_vertices)
             self._collision_check(True)
             logger.info('Built graph')
         else:
@@ -67,9 +72,9 @@ class GridGraph(object):
             self.start = refmap.start
             self.goal = refmap.goal
             logger.info('Imported graph')
-            self._align(refmap.occ_grid) # garbage, doesn't work
-            self.origin = refmap.origin
-            logger.debug('Modified origin: {}'.format(self.origin))
+            # self._align(refmap.occ_grid) # garbage, doesn't work
+            # self.origin = refmap.origin
+            # logger.debug('Modified origin: {}'.format(self.origin))
             (self.imgheight, self.imgwidth) = self.occ_grid.shape
             self.bounds = self.calc_bounding_coord()
             self._collision_check()
@@ -167,7 +172,7 @@ class GridGraph(object):
             n_unblocked = 0
             n_unknown = 0
             mean = [0,0]
-            cov = [[0.1,0],[0,0.1]]
+            cov = [[0.01,0],[0,0.01]]
 
             for n in range(MC_SAMPLES):
                 if n == 0: (dx, dy) = mean
@@ -443,7 +448,7 @@ class GridGraph(object):
 
         return (px, py)
 
-    def build_graph(self, res, start, goal, opt='halton', n=500):
+    def build_graph(self, res, start, goal, opt='halton', n=500, custom=None):
         """
         res - resolution of graph vertices 
         start, goal - (x,y) cartesian coordinates
@@ -474,6 +479,13 @@ class GridGraph(object):
 
             graph = nx.grid_2d_graph(num_x, num_y)
             graph = nx.relabel_nodes(graph, real_coord)
+        elif opt == 'custom':
+            # custom graph, pass in nx graph.
+            # start = labelled with 's'
+            # goal = labelled with 'g'
+            graph = custom
+            self.start = 's' 
+            self.goal = 'g'
         else:
             # different sampling options
             if opt == 'random':
