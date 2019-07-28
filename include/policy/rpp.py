@@ -42,15 +42,20 @@ def get_knownG(features, supermaps, belief):
     known_features = {}
     for feature in features:
         # logger.debug("Checking {}".format(feature))
-        state = supermaps[belief[0]].feature_state(feature)
+        state = None
         is_known = True
         for i in belief:
             new_state = supermaps[i].feature_state(feature)
-            if new_state != state:
-                is_known = False
 
-        # if feature state is the same in all supermaps in the belief, use it to update
-        # the knownG
+            if new_state != base_map.G.UNKNOWN:
+                if state == None: state = new_state
+                if state != None and new_state != state: is_known = False
+
+        # if feature state is blocked in one supermap but unblocked in another supermap in
+        # the belief, then it can't be in knownG.
+        # if feature state is unknown in all beliefs, then add it to knownG so I can use
+        # it
+
         # if is_known: known_features[feature] = state
         (a,b) = feature
         knownG.add_edge(a,b)
