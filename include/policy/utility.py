@@ -21,6 +21,44 @@ import math
 
 from priority_queue import PriorityQueue
 
+def calc_bounding_coord_of_grid(origin, img_width, img_height, img_res):
+    # returns min and max of x and y respectively
+    (ox, oy, ot) = origin
+
+    width = img_width*img_res
+    height = img_height*img_res
+
+    minx = round(ox, 2)
+    maxx = round(width + ox, 2)
+    miny = round(oy, 2)
+    maxy = round(height + oy, 2)
+
+    return [minx, maxx, miny, maxy]
+
+def get_origin_and_res_from_yaml(path):
+    # path - path to yaml file we are interested in
+    # returns origin and resolution in yamlfile
+    origin = []
+
+    with open(path, 'rb') as yamlfile:
+        for line in yamlfile:
+            if "origin" in line:
+                lb = line.find("[")
+                rb = line.find("]")
+                raw_origin = line[lb + 1:rb].split(', ') # extract origin coordinates
+
+            if "resolution" in line:
+                colon = line.find(":")
+                resolution = float(line[colon + 2:])
+
+    if raw_origin != None and resolution != None:
+        for item in raw_origin:
+            origin.append(float(item))
+        logger.info("origin: {}, resolution: {}".format(origin, resolution))
+        return origin, resolution
+    else:
+        logger.error("Failed to get data")
+
 def isclose(a,b,rel_tol=1e-09, abs_tol=0.0):
     # Compares equality of two floats
     # implementation provided in python documentation
