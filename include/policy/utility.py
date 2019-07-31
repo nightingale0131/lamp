@@ -21,6 +21,22 @@ import math
 
 from priority_queue import PriorityQueue
 
+def print_coord_list(coords):
+    # print a list of coordinates in a nice format
+    # assume floats
+    msg = "["
+    for tuple in coords:
+        msg += "("
+        for i, c in enumerate(tuple):
+            msg += "{:.2f}".format(c)
+            if i < len(tuple) - 1:
+                msg += ", "
+        msg += ") "
+
+    msg += "]"
+
+    return msg
+
 def calc_bounding_coord_of_grid(origin, img_width, img_height, img_res):
     # returns min and max of x and y respectively
     (ox, oy, ot) = origin
