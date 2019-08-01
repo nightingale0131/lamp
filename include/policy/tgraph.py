@@ -15,6 +15,8 @@ from matplotlib import pyplot as plt
 from shapely.geometry import Point, LineString, box
 import csv
 
+import utility as util
+
 # import timing
 
 UNKNOWN = -1
@@ -46,7 +48,7 @@ class TGraph(object):
         for u,v in self.graph.edges():
             # set edge attributes
             self.set_edge_state(u, v, UNKNOWN)
-            self.set_edge_weight(u, v, self.min_dist(u,v))
+            self.set_edge_weight(u, v, self.min_mid_dist(u,v))
             try:
                 self.graph.edge[u][v]['polygon'] = polygon_dict[(u,v)]
             except KeyError:
@@ -62,6 +64,18 @@ class TGraph(object):
         a = self.graph.node[u]['defn']
         b = self.graph.node[v]['defn']
         return a.distance(b)
+
+    def min_mid_dist(self, u, v):
+        a = self.pos(u)
+        b = self.pos(v)
+        return util.euclidean_distance(a,b)
+
+    def pos(self, v):
+        # returns (x,y) coord of v
+        obj = self.graph.node[v]['defn']
+        midpt = obj.centroid
+
+        return (midpt.x, midpt.y)
 
     def get_polygon(self, u, v):
         # returns polygon associated w/ edge
@@ -91,17 +105,29 @@ class TGraph(object):
 
         self.graph.edge[u][v]['weight'] = weight
 
-    def check_edge_state(self, u, v, rospath):
+    def check_edge_state(self, u, v, rospath, padding=0):
         # (u,v) - edge we want to check
-        # rospath - arr of PoseStamped
+        # rospath - list of (x,y) coords repr a path
         # Sets edge state: if rospath is contained in edge polygon -> edge is unblocked
         # Also returns updated state of edge
-        raw_path = [stamped_pose.pose.position for stamped_pose in rospath]
-        path = LineString(raw_path)
 
-        polygon = self.get_polygon(u,v)
-        if polygon.contains(path): self.set_edge_state(u,v,UNBLOCKED)
-        else: self.set_edge_state(u,v,BLOCKED)
+        # if rospath is empty, planner failed to find a valid path so edge must be blocked
+        if rospath == []:
+            self.set_edge_state(u,v,BLOCKED)
+            self.set_edge_weight(u,v,float('inf'))
+        else:
+
+            path = LineString(rospath)
+
+            polygon = self.get_polygon(u,v)
+            infl_poly = polygon.buffer(padding)
+            print("Checking if path crosses the following: {}".format(infl_poly.bounds))
+            print("Path: {}".format(util.print_coord_list(path.coords)))
+
+            if infl_poly.contains(path): self.set_edge_state(u,v,UNBLOCKED)
+            else: 
+                self.set_edge_state(u,v,BLOCKED)
+                self.set_edge_weight(u,v,float('inf'))
 
         return self.graph.edge[u][v]['state']
 
