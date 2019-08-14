@@ -11,6 +11,7 @@ from geometry_msgs.msg import Point, Polygon
 from nav_msgs.msg import OccupancyGrid
 import shapely.geometry as sh
 import numpy as np
+import matplotlib.pyplot as plt
 
 class CheckCostmapNode():
     def __init__(self):
@@ -28,7 +29,11 @@ class CheckCostmapNode():
         self.costmap = data
 
     def check_edge_handle(self, req):
-        return
+        submap = SubMap(self.costmap, req.polygon)
+        bounds = [submap.minx, submap.maxx, submap.miny, submap.maxy]
+        plt.imshow(submap.grid, cmap='gray', interpolation='bicubic', extent=bounds)
+        plt.show()
+        return True
 
 class SubMap():
     # ASSUMES POLYGON IS BOX!!! Cannot deal with other shaped polygons
@@ -49,7 +54,7 @@ class SubMap():
         toppx = max(0, int((self.miny - origin.y)/self.res))
         botpx = min(map_height - 1, int((self.maxy - origin.y)/self.res))
 
-        rospy.debug("Extraction site: left: {}, right: {}, top: {}, bottom: {}"
+        rospy.loginfo("Extraction site: left: {}, right: {}, top: {}, bottom: {}"
                 .format(leftpx, rightpx, toppx, botpx))
 
         # do some validation
@@ -60,12 +65,17 @@ class SubMap():
         self.grid = np.empty((botpx - toppx + 1, rightpx - leftpx + 1))
 
         # fill in rows of grid
-        for row in range(toppx, botpx + 1):
+        for row in range(botpx - toppx + 1):
             self.grid[row, :] = costmap.data[(row*map_width + leftpx):(row*map_width +
                 rightpx + 1)]
 
     def cell(self, x, y):
         # (x,y) - cartesian coordinates
+        assert (x >= self.minx and x <= self.maxx), (
+                "x: {:.2f}, minx: {:.2f}, maxx: {:.2f}".format(x, self.minx, self.maxx))
+        assert (y >= self.miny and y <= self.maxy), (
+                "y: {:.2f}, miny: {:.2f}, maxy: {:.2f}".format(y, self.miny, self.maxy))
+
         px = int((x - self.minx)/self.res)
         py = int((y - self.miny)/self.res)
 
@@ -73,3 +83,4 @@ class SubMap():
 
 
 if __name__ == '__main__':
+    CheckCostmapNode()
