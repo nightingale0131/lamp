@@ -2,7 +2,7 @@
 
 geometry_msgs/Point start
 geometry_msgs/Point goal
-geometry_msgs/Polygon submap
---
+geometry_msgs/Polygon polygon
+---
 bool result
 
