@@ -7,6 +7,7 @@ Node for doing checks on the costmap that move_base won't do
 import rospy
 
 from policy.srv import CheckEdge
+import policy.utility as util
 from geometry_msgs.msg import Point, Polygon
 from nav_msgs.msg import OccupancyGrid
 import shapely.geometry as sh
@@ -31,12 +32,25 @@ class CheckCostmapNode():
     def check_edge_handle(self, req):
         submap = SubMap(self.costmap, req.polygon)
         bounds = [submap.minx, submap.maxx, submap.miny, submap.maxy]
+        rospy.loginfo("Submap height: {}, width: {}".format(submap.height, submap.width))
+
+        startpx = submap.cell(req.start.x, req.start.y)
+        goalpx = submap.cell(req.goal.x, req.goal.y)
+
+        # see if A* returns a valid path
+        came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
+
+        try:
+            self.path = util.reconstruct_path(came_from, startpx, goalpx)
+        except KeyError:
+            rospy.loginfo("No path in submap from {} to {}".format(req.start, req.goal))
+            return False
 
         # debugging code that should be removed later
-        plt.imshow(submap.grid, cmap='gray', interpolation='bicubic', extent=bounds)
-        plt.show()
-        col, row = submap.cell(0,0)
-        rospy.loginfo("grid[{},{}] = {}".format(row, col, submap.grid[row,col]))
+        # plt.imshow(submap.grid, cmap='gray', interpolation='bicubic', extent=bounds)
+        # plt.show()
+        # col, row = submap.cell(0,0)
+        # rospy.loginfo("grid[{},{}] = {}".format(row, col, submap.grid[row,col]))
         return True
 
 class SubMap():
@@ -66,12 +80,28 @@ class SubMap():
                 and toppx < map_height and botpx >=0), (
                 "Submap is completely outside of costmap")
 
-        self.grid = np.empty((botpx - toppx + 1, rightpx - leftpx + 1))
+        self.width = rightpx - leftpx + 1
+        self.height = botpx - toppx + 1
+        self.grid = np.empty((self.height, self.width))
 
         # fill in rows of grid
-        for row in range(botpx - toppx + 1):
-            self.grid[row, :] = costmap.data[(row*map_width + leftpx):(row*map_width +
+        for row in range(toppx, botpx + 1):
+            self.grid[(row - toppx), :] = costmap.data[(row*map_width + leftpx):(row*map_width +
                 rightpx + 1)]
+
+    def in_bounds(self, cell):
+        (row, col) = cell
+        if (row >= 0 and row < self.height) and (col >= 0 and col < self.width):
+            return True
+        else:
+            return False
+
+    def passable(self, cell):
+        (row, col) = cell
+        
+        if not self.in_bounds(cell): return False
+        elif self.grid[row,col] >= 99: return False
+        else: return True
 
     def cell(self, x, y):
         # (x,y) - cartesian coordinates
@@ -83,7 +113,35 @@ class SubMap():
         col = int((x - self.minx)/self.res)
         row = int((y - self.miny)/self.res)
 
-        return (col, row)
+        return (row, col)
+
+    def neighbours(self, cell):
+        # 4-way grid, return adjacent cells that are not occupied
+        (row, col) = cell
+        temp = [(row-1, col), (row+1, col), (row, col-1), (row, col+1)] 
+        neighbours = []
+
+        for possible_neighbour in temp:
+            if self.passable(possible_neighbour): neighbours.append(possible_neighbour)
+
+        return neighbours
+
+    def weight(self, cell1, cell2):
+        (r1, c1) = cell1
+        (r2, c2) = cell2
+
+        if not (self.passable(cell1) and self.passable(cell2)): return float('inf')
+
+        if (abs(c1 - c2) == 1 or abs(r1 - r2) == 1):
+            return 1 + self.grid[r1, c1] + self.grid[r2,c2] 
+        else: return float('inf')
+
+    def dist(self, cell1, cell2):
+        # heuristic for A*, cell1 and cell2 don't have to be neighbours
+
+        if not (self.passable(cell1) and self.passable(cell2)): return float('inf')
+
+        return util.euclidean_distance(cell1, cell2)
 
 
 if __name__ == '__main__':

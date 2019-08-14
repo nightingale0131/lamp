@@ -15,12 +15,18 @@ def check_edge_client(start, goal, polygon):
 
 if __name__ == "__main__":
     start = Point(0,0,0)
-    goal = Point(8,-1,0)
+    goal = Point(-1,8,0)
 
     poly_list = [Point(-2,9,0),
             Point(1,9,0),
             Point(1,-2,0),
             Point(-2,-2,0)]
+
+    bad_poly_list = [Point(-5,7,0),
+            Point(-4,7,0),
+            Point(-4,4,0),
+            Point(-5,4,0)]
+
     poly = Polygon(poly_list)
 
     check_edge_client(start, goal, poly)
