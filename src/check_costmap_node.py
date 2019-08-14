@@ -31,8 +31,12 @@ class CheckCostmapNode():
     def check_edge_handle(self, req):
         submap = SubMap(self.costmap, req.polygon)
         bounds = [submap.minx, submap.maxx, submap.miny, submap.maxy]
+
+        # debugging code that should be removed later
         plt.imshow(submap.grid, cmap='gray', interpolation='bicubic', extent=bounds)
         plt.show()
+        col, row = submap.cell(0,0)
+        rospy.loginfo("grid[{},{}] = {}".format(row, col, submap.grid[row,col]))
         return True
 
 class SubMap():
@@ -76,10 +80,10 @@ class SubMap():
         assert (y >= self.miny and y <= self.maxy), (
                 "y: {:.2f}, miny: {:.2f}, maxy: {:.2f}".format(y, self.miny, self.maxy))
 
-        px = int((x - self.minx)/self.res)
-        py = int((y - self.miny)/self.res)
+        col = int((x - self.minx)/self.res)
+        row = int((y - self.miny)/self.res)
 
-        return (px, py)
+        return (col, row)
 
 
 if __name__ == '__main__':
