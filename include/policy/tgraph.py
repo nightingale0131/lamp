@@ -72,6 +72,7 @@ class TGraph(object):
 
     def pos(self, v):
         # returns (x,y) coord of v
+        # currently just the midpoint
         obj = self.graph.node[v]['defn']
         midpt = obj.centroid
 
@@ -92,6 +93,9 @@ class TGraph(object):
                 vset.update([u,v])
 
         return vset
+
+    def edges(self, data=False):
+        return self.graph.edges(data=data)
     
     def set_edge_state(self, u, v, state):
         assert (state == UNBLOCKED or state == BLOCKED or state == UNKNOWN), (
@@ -105,29 +109,33 @@ class TGraph(object):
 
         self.graph.edge[u][v]['weight'] = weight
 
-    def check_edge_state(self, u, v, rospath, padding=0):
+    def check_edge_state(self, u, v, path, padding=0, set_unblocked=True):
         # (u,v) - edge we want to check
-        # rospath - list of (x,y) coords repr a path
-        # Sets edge state: if rospath is contained in edge polygon -> edge is unblocked
+        # path - list of (x,y) coords repr a path
+        # Sets edge state: if path is contained in edge polygon -> edge is unblocked
         # Also returns updated state of edge
 
-        # if rospath is empty, planner failed to find a valid path so edge must be blocked
-        if rospath == []:
-            self.set_edge_state(u,v,BLOCKED)
-            self.set_edge_weight(u,v,float('inf'))
-        else:
-
-            path = LineString(rospath)
-
-            polygon = self.get_polygon(u,v)
-            infl_poly = polygon.buffer(padding)
-            print("Checking if path crosses the following: {}".format(infl_poly.bounds))
-            print("Path: {}".format(util.print_coord_list(path.coords)))
-
-            if infl_poly.contains(path): self.set_edge_state(u,v,UNBLOCKED)
-            else: 
+        # don't want to change edge state if it is already set to UNBLOCKED
+        if self.graph.edge[u][v]['state'] != UNBLOCKED:
+            # if path is empty, planner failed to find a valid path so edge must be blocked
+            if path == []:
                 self.set_edge_state(u,v,BLOCKED)
                 self.set_edge_weight(u,v,float('inf'))
+            else:
+                path = LineString(path)
+
+                polygon = self.get_polygon(u,v)
+                infl_poly = polygon.buffer(padding)
+                logger.debug("Checking if path crosses the following: {}".format(infl_poly.bounds))
+                logger.debug("Path: {}".format(util.print_coord_list(path.coords)))
+
+                path_in_submap = infl_poly.contains(path)
+
+                if path_in_submap and set_unblocked: 
+                    self.set_edge_state(u,v,UNBLOCKED)
+                elif not path_in_submap: 
+                    self.set_edge_state(u,v,BLOCKED)
+                    self.set_edge_weight(u,v,float('inf'))
 
         return self.graph.edge[u][v]['state']
 
