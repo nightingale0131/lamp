@@ -19,6 +19,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from policy.srv import CheckEdge
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 
@@ -28,6 +29,7 @@ class MoveBaseSeq():
         # path - list of vertices [v1, v2, ...]
         rospy.init_node('move_base_seq')
         self.base_graph = base_graph
+        self.pos = self.base_graph.pos('s')
         self.path_blocked = False # flag for path being blocked, calls reactive algo
         self.observe = False # flag for making an observation
         self.at_final_goal = False # flag for reaching final destination
@@ -71,6 +73,9 @@ class MoveBaseSeq():
         # check if robot is close enough to send next goal
         position = feedback.base_position.pose.position
         (x,y) = (position.x, position.y)
+
+        # set this to be available to all class methods
+        self.pos = (x,y)
 
         curr_goal = self.pose_seq[self.goal_cnt].position
         (gx,gy) = (curr_goal.x, curr_goal.y)
@@ -122,6 +127,7 @@ class MoveBaseSeq():
             # The goal was achieved successfully by the action server (Terminal State)
             rospy.loginfo("Done Status 3")
             if self.going_to_final_goal() == True:
+                print(self.base_graph.edges(data=True))
                 rospy.loginfo("Final goal pose reached!")
                 rospy.signal_shutdown("Final goal pose reached!")
                 return
@@ -242,6 +248,13 @@ class MoveBaseSeq():
     def plan_callback(self, data):
         # constantly checking returned rospath. If it exits the reg mark path as blocked
         # extracting needed data
+
+        # getting range of robot
+        obst_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/obstacle_range')
+        clear_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/raytrace_range')
+
+        robot_range = min(obst_range, clear_range)
+
         if self.goal_cnt != 0 or self.path_blocked:
             # if goal_cnt == 0, this means we are returning to the prev vertex and we
             # don't need to check if path is in polygon. Maybe have smarter behaviour that
@@ -249,26 +262,42 @@ class MoveBaseSeq():
             # though
             vnext = self.path[self.goal_cnt]
             vcurr = self.path[self.goal_cnt - 1]
-            rospath = []
-
-            for stamped_pose in data.poses:
-                rospath.append((stamped_pose.pose.position.x,
-                                stamped_pose.pose.position.y))
+            rospath = to_2d_path(data)
 
             # if rospath == []: return
             # if path is empty, don't do edge check, wait until move_base aborts goal
             # aka exit callback
 
             curr_edge_state = self.base_graph.check_edge_state(vcurr, vnext, rospath,
-                                                               PADDING)
+                                                               PADDING, False)
 
             if curr_edge_state == tgraph.BLOCKED:
                 # recalculate path on base_graph
-                self.path_blocked = True;
-                rospy.loginfo("Path is blocked!")
-                self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                self.path_blocked = True
+
+            # then check other submaps in range 
+            # Only sets BLOCKED if applicable
+            # TODO: change to custom service
+            for (u,v) in self.base_graph.edges():
+                dist_to_u = util.euclidean_distance(self.base_graph.pos(u), self.pos)
+                dist_to_v = util.euclidean_distance(self.base_graph.pos(v), self.pos)
+
+                if (dist_to_u <= robot_range) and (dist_to_v <= robot_range):
+                    path_exists = self.check_edge_client(u,v,self.base_graph.get_polygon(u,v))
+
+                    rospath = self.get_plan_client(u,v)
+                    state = self.base_graph.check_edge_state(u,v,rospath,PADDING,set_unblocked=False)
+                    # check if edge is in path
+                    if state == tgraph.BLOCKED:
+                        for i, v_i in enumerate(self.path):
+                            if i == 0: continue
+                            if (self.path[i-1] == u and v_i == v):
+                                self.path_blocked = True
+                                break
 
             if self.path_blocked:
+                rospy.loginfo("Path is blocked!")
+                self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
                 self.replan()
                 self.path_blocked = False
 
@@ -276,6 +305,7 @@ class MoveBaseSeq():
 
     def replan(self):
         rospy.loginfo("Replanning on graph...")
+        # go back to the previous node. But this might not be desired behaviour.
         start = self.path[max(0,self.goal_cnt - 1)]
         dist, paths = nx.single_source_dijkstra(self.base_graph.graph, start, 'g')
 
@@ -287,6 +317,53 @@ class MoveBaseSeq():
         self.path = paths['g']
         self.set_new_path(self.path, self.base_graph, at_first_node = False)
         self.set_and_send_next_goal()
+
+    def check_edge_client(u, v, polygon):
+        # u,v - vertices in tgraph
+        # polygon - shapely polygon
+        # TODO: add tolerance?
+
+        # convert vertices -> coordinates -> Point
+        ux, uy = self.base_graph.pos(u)
+        u_pt = Point(ux, uy, 0)
+        vx, vy = self.base_graph.pos(v)
+        v_pt = Point(vx, vy, 0)
+
+        # TODO: convert shapely polygon -> ros Polygon
+
+        # call service
+        rospy.wait_for_service('check_edge')
+        try:
+            check_edge = rospy.ServiceProxy('check_edge', CheckEdge)
+            result = check_edge(u_pt, v_pt, polygon)
+            return result.result
+        except rospy.ServiceException, e:
+            print("Service call failed: {}".format(e))
+
+
+def to_pose_stamped(x,y,z):
+    pose = PoseStamped()
+    pose.header.stamp = rospy.Time.now()
+    pose.header.frame_id = "map"
+
+    pose.pose.position.x = x
+    pose.pose.position.y = y
+    pose.pose.position.z = z
+
+    # don't care about orientation
+    pose.pose.orientation = Quaternion(*(quaternion_from_euler(0,0,0)))
+
+    return pose
+
+def to_2d_path(rospath):
+    # rospath - ros path message, seq of stamped poses
+    path = []
+
+    for stamped_pose in rospath.poses:
+        path.append((stamped_pose.pose.position.x,
+                     stamped_pose.pose.position.y))
+
+    return path
 
 if __name__ == '__main__':
     # load map and determine graph
