@@ -43,7 +43,8 @@ class CheckCostmapNode():
         try:
             self.path = util.reconstruct_path(came_from, startpx, goalpx)
         except KeyError:
-            rospy.loginfo("No path in submap from {} to {}".format(req.start, req.goal))
+            rospy.loginfo("No path in submap from {} to {}"
+                          .format(point_to_tuple(req.start), point_to_tuple(req.goal)))
             return False
 
         # debugging code that should be removed later
@@ -51,7 +52,12 @@ class CheckCostmapNode():
         # plt.show()
         # col, row = submap.cell(0,0)
         # rospy.loginfo("grid[{},{}] = {}".format(row, col, submap.grid[row,col]))
+        rospy.loginfo("Path exists in submap from {} to {}"
+                          .format(point_to_tuple(req.start), point_to_tuple(req.goal)))
         return True
+
+    def point_to_tuple(point):
+        return "({:.2f},{:.2f},{:.2f})".format(point.x, point.y, point.z)
 
 class SubMap():
     # ASSUMES POLYGON IS BOX!!! Cannot deal with other shaped polygons
