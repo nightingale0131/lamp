@@ -44,7 +44,7 @@ class CheckCostmapNode():
             self.path = util.reconstruct_path(came_from, startpx, goalpx)
         except KeyError:
             rospy.loginfo("No path in submap from {} to {}"
-                          .format(point_to_tuple(req.start), point_to_tuple(req.goal)))
+                          .format(self.point_to_tuple(req.start), self.point_to_tuple(req.goal)))
             return False
 
         # debugging code that should be removed later
@@ -53,10 +53,10 @@ class CheckCostmapNode():
         # col, row = submap.cell(0,0)
         # rospy.loginfo("grid[{},{}] = {}".format(row, col, submap.grid[row,col]))
         rospy.loginfo("Path exists in submap from {} to {}"
-                          .format(point_to_tuple(req.start), point_to_tuple(req.goal)))
+                          .format(self.point_to_tuple(req.start), self.point_to_tuple(req.goal)))
         return True
 
-    def point_to_tuple(point):
+    def point_to_tuple(self, point):
         return "({:.2f},{:.2f},{:.2f})".format(point.x, point.y, point.z)
 
 class SubMap():
@@ -112,9 +112,9 @@ class SubMap():
     def cell(self, x, y):
         # (x,y) - cartesian coordinates
         assert (x >= self.minx and x <= self.maxx), (
-                "x: {:.2f}, minx: {:.2f}, maxx: {:.2f}".format(x, self.minx, self.maxx))
+                "x: {:.3f}, minx: {:.3f}, maxx: {:.3f}".format(x, self.minx, self.maxx))
         assert (y >= self.miny and y <= self.maxy), (
-                "y: {:.2f}, miny: {:.2f}, maxy: {:.2f}".format(y, self.miny, self.maxy))
+                "y: {:.3f}, miny: {:.3}, maxy: {:.3f}".format(y, self.miny, self.maxy))
 
         col = int((x - self.minx)/self.res)
         row = int((y - self.miny)/self.res)

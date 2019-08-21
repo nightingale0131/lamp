@@ -17,7 +17,7 @@ from policy import utility as util
 from nav_msgs.msg import OccupancyGrid, Path
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
-from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped, Polygon
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from policy.srv import CheckEdge
 
@@ -36,7 +36,8 @@ class MoveBaseSeq():
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.plan_subscriber = rospy.Subscriber("move_base/NavfnROS/plan", Path,
-                                                self.plan_callback, queue_size=1)
+                                                self.plan_callback, queue_size=1,
+                                                buff_size=2**24)
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
         
         if policy == None:
@@ -127,7 +128,7 @@ class MoveBaseSeq():
             # The goal was achieved successfully by the action server (Terminal State)
             rospy.loginfo("Done Status 3")
             if self.going_to_final_goal() == True:
-                print(self.base_graph.edges(data=True))
+                print(self.base_graph.edges(data='state'))
                 rospy.loginfo("Final goal pose reached!")
                 rospy.signal_shutdown("Final goal pose reached!")
                 return
@@ -264,12 +265,12 @@ class MoveBaseSeq():
             vcurr = self.path[self.goal_cnt - 1]
             rospath = to_2d_path(data)
 
-            # if rospath == []: return
-            # if path is empty, don't do edge check, wait until move_base aborts goal
-            # aka exit callback
+            rospy.loginfo("Checking edge ({},{})".format(vcurr, vnext))
+            rospy.loginfo("Path: {}".format(util.print_coord_list(rospath)))
 
             curr_edge_state = self.base_graph.check_edge_state(vcurr, vnext, rospath,
                                                                PADDING, False)
+            rospy.loginfo("result of check_edge_state: {}".format(curr_edge_state))
 
             if curr_edge_state == tgraph.BLOCKED:
                 # recalculate path on base_graph
@@ -277,7 +278,6 @@ class MoveBaseSeq():
 
             # then check other submaps in range 
             # Only sets BLOCKED if applicable
-            # TODO: change to custom service
             for (u,v) in self.base_graph.edges():
                 dist_to_u = util.euclidean_distance(self.base_graph.pos(u), self.pos)
                 dist_to_v = util.euclidean_distance(self.base_graph.pos(v), self.pos)
@@ -285,10 +285,11 @@ class MoveBaseSeq():
                 if (dist_to_u <= robot_range) and (dist_to_v <= robot_range):
                     path_exists = self.check_edge_client(u,v,self.base_graph.get_polygon(u,v))
 
-                    rospath = self.get_plan_client(u,v)
-                    state = self.base_graph.check_edge_state(u,v,rospath,PADDING,set_unblocked=False)
-                    # check if edge is in path
-                    if state == tgraph.BLOCKED:
+                    if path_exists == False:
+                        self.base_graph.set_edge_state(u,v,tgraph.BLOCKED)
+                        self.base_graph.set_edge_weight(u,v,float('inf'))
+
+                        # check if edge is in path, if edge is blocked
                         for i, v_i in enumerate(self.path):
                             if i == 0: continue
                             if (self.path[i-1] == u and v_i == v):
@@ -310,6 +311,7 @@ class MoveBaseSeq():
         dist, paths = nx.single_source_dijkstra(self.base_graph.graph, start, 'g')
 
         if dist['g'] == float('inf'):
+            print(self.base_graph.edges(data='state'))
             rospy.loginfo("Cannot go to goal! Stopping node.")
             rospy.signal_shutdown("Cannot go to goal! Stopping node.")
             return # path_blocked = True from now until shutdown
@@ -318,10 +320,10 @@ class MoveBaseSeq():
         self.set_new_path(self.path, self.base_graph, at_first_node = False)
         self.set_and_send_next_goal()
 
-    def check_edge_client(u, v, polygon):
+    def check_edge_client(self, u, v, polygon):
         # u,v - vertices in tgraph
         # polygon - shapely polygon
-        # TODO: add tolerance?
+        # TODO: add tolerance to start and goal?
 
         # convert vertices -> coordinates -> Point
         ux, uy = self.base_graph.pos(u)
@@ -329,13 +331,15 @@ class MoveBaseSeq():
         vx, vy = self.base_graph.pos(v)
         v_pt = Point(vx, vy, 0)
 
-        # TODO: convert shapely polygon -> ros Polygon
+        # inflate polygon and convert shapely polygon -> ros Polygon
+        polygon = polygon.buffer(PADDING)
+        ros_polygon = Polygon([Point(p[0],p[1],0) for p in polygon.exterior.coords])
 
         # call service
         rospy.wait_for_service('check_edge')
         try:
             check_edge = rospy.ServiceProxy('check_edge', CheckEdge)
-            result = check_edge(u_pt, v_pt, polygon)
+            result = check_edge(u_pt, v_pt, ros_polygon)
             return result.result
         except rospy.ServiceException, e:
             print("Service call failed: {}".format(e))
