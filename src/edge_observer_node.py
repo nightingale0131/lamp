@@ -4,68 +4,122 @@
 Node for doing checks on the costmap that move_base won't do
 """
 
-import rospy
-
-from policy.srv import CheckEdge
-import policy.utility as util
-from geometry_msgs.msg import Point, Polygon
-from nav_msgs.msg import OccupancyGrid
+import rospy, rospkg
+import os
 import shapely.geometry as sh
 import numpy as np
 import matplotlib.pyplot as plt
+import networkx as nx
+import policy.utility as util
+from policy import tgraph
 
-class CheckCostmapNode():
-    def __init__(self):
+from policy.msg import EdgeUpdate
+from geometry_msgs.msg import Point, Polygon, PoseWithCovarianceStamped
+from nav_msgs.msg import OccupancyGrid
+
+PADDING = 0.3 # must be greater than xy_goal_tolerance
+
+class EdgeObserver():
+    def __init__(self, base_graph):
         rospy.init_node('check_costmap')
 
-        self.map_subscriber = rospy.Subscriber("move_base/global_costmap/costmap", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
+        self.base_graph = base_graph
+        self.costmap = None
+        self.robot_pose = self.base_graph.pos('s')
+        self.robot_range = self.get_robot_range()
 
-        s = rospy.Service('check_edge', CheckEdge, self.check_edge_handle)
-        rospy.loginfo('Ready to check costmap')
+        self.map_sub = rospy.Subscriber("move_base/global_costmap/costmap", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
+        self.pose_sub = rospy.Subscriber("amcl_pose", PoseWithCovarianceStamped,
+                                                self.pose_callback, queue_size=1)
 
-        rospy.spin()
+        self.edge_state_pub = rospy.Publisher("policy/edge_update", EdgeUpdate,
+                                              queue_size=10)
+
+        self.edge_updater()
 
     def map_callback(self, data):
         # keep costmap updated
         self.costmap = data
 
-    def check_edge_handle(self, req):
-        submap = SubMap(self.costmap, req.polygon)
+    def pose_callback(self, data):
+        # keep robot location updated
+        x = data.pose.pose.position.x
+        y = data.pose.pose.position.y
+        self.robot_pose = (x,y)
+
+    def get_robot_range(self):
+        # select range of robot's sensors, set by move_base parameters
+        obst_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/obstacle_range')
+        clear_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/raytrace_range')
+
+        return min(obst_range, clear_range)
+
+    def edge_updater(self):
+        # publishes to edge_state
+        rate = rospy.Rate(10)   # 10 Hz
+        while not rospy.is_shutdown():
+            # check that costmap subscriber has started receiving messages
+            if self.costmap == None:
+                continue
+
+            for (u,v) in self.base_graph.edges():
+                dist_to_u = util.euclidean_distance(self.base_graph.pos(u),
+                                                    self.robot_pose)
+                dist_to_v = util.euclidean_distance(self.base_graph.pos(v),
+                                                    self.robot_pose)
+
+                if (dist_to_u <= self.robot_range) and (dist_to_v <= self.robot_range):
+                    edge_state = self.check_edge(u,v)
+
+                    # prepare message
+                    msg = EdgeUpdate(str(u), str(v), edge_state)
+                    self.edge_state_pub.publish(msg)
+                    rate.sleep() # not sure if this is the right place to put this
+
+    def check_edge(self, u, v):
+        polygon = self.base_graph.get_polygon(u,v)
+        bufpoly = polygon.buffer(PADDING)
+        submap = SubMap(self.costmap, bufpoly)
         bounds = [submap.minx, submap.maxx, submap.miny, submap.maxy]
         rospy.loginfo("Submap height: {}, width: {}".format(submap.height, submap.width))
 
-        startpx = submap.cell(req.start.x, req.start.y)
-        goalpx = submap.cell(req.goal.x, req.goal.y)
+        (startx, starty) = self.base_graph.pos(u)
+        (goalx, goaly) = self.base_graph.pos(v)
+
+        startpx = submap.cell(startx, starty)
+        goalpx = submap.cell(goalx, goaly)
+
+        rospy.loginfo("Searching for path from {} to {}...".format(u,v))
+
+        # TODO: check if area around start or goal is not completely occupied
+        if not (submap.passable(startpx) and submap.passable(goalpx)):
+            rospy.loginfo("No path found because start or goal not valid!\n")
+            return tgraph.BLOCKED
+
 
         # see if A* returns a valid path
         came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
+        rospy.loginfo("Finished search")
 
         try:
             self.path = util.reconstruct_path(came_from, startpx, goalpx)
         except KeyError:
-            rospy.loginfo("No path in submap from {} to {}"
-                          .format(self.point_to_tuple(req.start), self.point_to_tuple(req.goal)))
-            return False
+            rospy.loginfo("No path found!\n")
+            return tgraph.BLOCKED
 
-        # debugging code that should be removed later
-        # plt.imshow(submap.grid, cmap='gray', interpolation='bicubic', extent=bounds)
-        # plt.show()
-        # col, row = submap.cell(0,0)
-        # rospy.loginfo("grid[{},{}] = {}".format(row, col, submap.grid[row,col]))
-        rospy.loginfo("Path exists in submap from {} to {}"
-                          .format(self.point_to_tuple(req.start), self.point_to_tuple(req.goal)))
-        return True
+        rospy.loginfo("Path found!\n")
+        return tgraph.UNKNOWN # should return original state, need to update map
 
     def point_to_tuple(self, point):
-        return "({:.2f},{:.2f},{:.2f})".format(point.x, point.y, point.z)
+        return "({:.2f},{:.2f})".format(point.x, point.y)
 
 class SubMap():
     # ASSUMES POLYGON IS BOX!!! Cannot deal with other shaped polygons
     def __init__(self, costmap, polygon):
         # costmap -> nav_msgs/OccupancyGrid msg 
-        # polygon -> geometry_msgs/Polygon msg
+        # polygon -> shapely polygon
 
-        boundary = sh.Polygon([(p.x, p.y) for p in polygon.points])
+        boundary = polygon
         (self.minx, self.miny, self.maxx, self.maxy) = boundary.bounds # m
         self.res = costmap.info.resolution       # m/cell
 
@@ -151,4 +205,14 @@ class SubMap():
 
 
 if __name__ == '__main__':
-    CheckCostmapNode()
+    rospack = rospkg.RosPack()
+    pkgdir = rospack.get_path('policy')
+    graph = nx.read_yaml(pkgdir + '/tests/tristan_maze_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv(pkgdir + '/tests/tristan_maze_polygons.csv')
+
+    base_graph = tgraph.TGraph(graph, poly_dict)
+
+    try:
+        EdgeObserver(base_graph)
+    except rospy.ROSInterruptException:
+        pass

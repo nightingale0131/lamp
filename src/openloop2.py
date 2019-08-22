@@ -20,6 +20,7 @@ from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped, Polygon
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from policy.srv import CheckEdge
+from policy.msg import EdgeUpdate
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 
@@ -38,6 +39,9 @@ class MoveBaseSeq():
         self.plan_subscriber = rospy.Subscriber("move_base/NavfnROS/plan", Path,
                                                 self.plan_callback, queue_size=1,
                                                 buff_size=2**24)
+        self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
+                                                self.edge_callback, queue_size=5)
+
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
         
         if policy == None:
@@ -250,13 +254,7 @@ class MoveBaseSeq():
         # constantly checking returned rospath. If it exits the reg mark path as blocked
         # extracting needed data
 
-        # getting range of robot
-        obst_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/obstacle_range')
-        clear_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/raytrace_range')
-
-        robot_range = min(obst_range, clear_range)
-
-        if self.goal_cnt != 0 or self.path_blocked:
+        if not (self.goal_cnt == 0 or self.path_blocked):
             # if goal_cnt == 0, this means we are returning to the prev vertex and we
             # don't need to check if path is in polygon. Maybe have smarter behaviour that
             # retraces steps? It might still not be what I want in light of new info
@@ -266,7 +264,7 @@ class MoveBaseSeq():
             rospath = to_2d_path(data)
 
             rospy.loginfo("Checking edge ({},{})".format(vcurr, vnext))
-            rospy.loginfo("Path: {}".format(util.print_coord_list(rospath)))
+            rospy.logdebug("Path: {}".format(util.print_coord_list(rospath)))
 
             curr_edge_state = self.base_graph.check_edge_state(vcurr, vnext, rospath,
                                                                PADDING, False)
@@ -276,31 +274,10 @@ class MoveBaseSeq():
                 # recalculate path on base_graph
                 self.path_blocked = True
 
-            # then check other submaps in range 
-            # Only sets BLOCKED if applicable
-            for (u,v) in self.base_graph.edges():
-                dist_to_u = util.euclidean_distance(self.base_graph.pos(u), self.pos)
-                dist_to_v = util.euclidean_distance(self.base_graph.pos(v), self.pos)
-
-                if (dist_to_u <= robot_range) and (dist_to_v <= robot_range):
-                    path_exists = self.check_edge_client(u,v,self.base_graph.get_polygon(u,v))
-
-                    if path_exists == False:
-                        self.base_graph.set_edge_state(u,v,tgraph.BLOCKED)
-                        self.base_graph.set_edge_weight(u,v,float('inf'))
-
-                        # check if edge is in path, if edge is blocked
-                        for i, v_i in enumerate(self.path):
-                            if i == 0: continue
-                            if (self.path[i-1] == u and v_i == v):
-                                self.path_blocked = True
-                                break
-
             if self.path_blocked:
                 rospy.loginfo("Path is blocked!")
                 self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
                 self.replan()
-                self.path_blocked = False
 
         self.posearray_publisher.publish(self.conv_to_PoseArray(self.pose_seq))
 
@@ -316,14 +293,46 @@ class MoveBaseSeq():
             rospy.signal_shutdown("Cannot go to goal! Stopping node.")
             return # path_blocked = True from now until shutdown
 
+        self.path_blocked = False
         self.path = paths['g']
+
+        # if robot is in the same submap as first edge, go straight to second node
+        curr_poly = self.base_graph.get_polygon(self.path[0], self.path[1])
+        if self.base_graph.in_polygon(self.pos, curr_poly):
+            self.path.pop(0)
+
         self.set_new_path(self.path, self.base_graph, at_first_node = False)
         self.set_and_send_next_goal()
+
+    def edge_callback(self, data):
+        # updates edges
+        u = data.u
+        if u.isdigit(): u = int(u)
+
+        v = data.v
+        if v.isdigit(): v = int(v)
+
+        self.base_graph.set_edge_state(u,v,data.state)
+
+        if data.state == tgraph.BLOCKED:
+            self.base_graph.set_edge_weight(u,v,float('inf'))
+
+            # if blocked edge is in path, replan
+            if not self.path_blocked:
+                for i, v_i in enumerate(self.path):
+                    if i == 0: continue
+                    if (self.path[i-1] == u and v_i == v) or (self.path[i-1] == v and v_i == u):
+                        # remember to check both directions
+                        self.path_blocked = True
+                        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                        rospy.loginfo("Path is blocked!")
+                        self.replan()
+                        break
 
     def check_edge_client(self, u, v, polygon):
         # u,v - vertices in tgraph
         # polygon - shapely polygon
-        # TODO: add tolerance to start and goal?
+        # OBSOLETE
 
         # convert vertices -> coordinates -> Point
         ux, uy = self.base_graph.pos(u)
