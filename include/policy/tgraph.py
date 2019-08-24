@@ -82,6 +82,14 @@ class TGraph(object):
         # returns polygon associated w/ edge
         return self.graph.edge[u][v]['polygon']
 
+    def in_polygon(self, pos, poly):
+        # pos - (x,y)
+        # poly - shapely polygon
+        # takes cartesian coordinates and returns whether location is in given polygon
+
+        p = Point(pos)
+        return poly.contains(p)
+
     def get_vertices_in_polygon(self, des_poly):
         # polygon - shapely polygon
         # Returns all vertices that are a portal or are in des_poly
@@ -93,6 +101,9 @@ class TGraph(object):
                 vset.update([u,v])
 
         return vset
+
+    def edge_state(self, u, v):
+        return self.graph[u][v]['state']
 
     def edges(self, data=False):
         return self.graph.edges(data=data)
