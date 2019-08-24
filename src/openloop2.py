@@ -293,7 +293,6 @@ class MoveBaseSeq():
             rospy.signal_shutdown("Cannot go to goal! Stopping node.")
             return # path_blocked = True from now until shutdown
 
-        self.path_blocked = False
         self.path = paths['g']
 
         # if robot is in the same submap as first edge, go straight to second node
@@ -303,6 +302,7 @@ class MoveBaseSeq():
 
         self.set_new_path(self.path, self.base_graph, at_first_node = False)
         self.set_and_send_next_goal()
+        self.path_blocked = False
 
     def edge_callback(self, data):
         # updates edges
