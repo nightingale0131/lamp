@@ -9,6 +9,7 @@ import numpy as np
 import visilibity as vis
 import numpy.linalg as LA
 import policy.utility as util
+from shapely.geometry import Polygon
 
 def ccw(Ax,Ay,Bx,By,Cx,Cy):
     return (Cy-Ay)*(Bx-Ax) > (By-Ay)*(Cx-Ax)
@@ -57,15 +58,18 @@ def intersection_point(L1, L2):
         # print("Line: {} \nEdge: {}".format(L1, L2))
         return False
 
-def find_obstacles(gridgraph):
+def find_obstacles(occ_grid, thresh=125):
+    # occ_grid needs to be cv2 object
     # returns list of obstacles (list of polygons)
     # threshold is a little low because I was trying to exclude unknown areas as obstacles
-    grid = gridgraph.occ_grid.copy()
+    grid = occ_grid.copy()
 
     grid[np.where(grid == 0)] = 255
-    thresh = cv2.threshold(grid, 125, 255, cv2.THRESH_BINARY_INV)[1]
+    thresh_grid = cv2.threshold(grid, thresh, 255, cv2.THRESH_BINARY_INV)[1]
+    thresh_grid = np.array(thresh_grid, dtype=np.uint8)
 
-    cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cv2.findContours(thresh_grid,cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cnts = imutils.grab_contours(cnts)
 
     # set contours as visilibity polygons
@@ -81,15 +85,10 @@ def find_obstacles(gridgraph):
 
     return obstacles
 
-def visible_set(gridGraph, observationPoint, obstacles):
-    # obstacles - list of visilibity polygons
+def visibility_polygon(obsv_x, obsv_y, obstacles):
+    # obsv_pt - (px,py), pixel in costmap
 
-    # setup environment and observer location
-    ox = int((observationPoint[0]-gridGraph.origin[0])/gridGraph.img_res)
-    oy = int((-observationPoint[1]+gridGraph.origin[1])/gridGraph.img_res)+gridGraph.imgheight
-    # print(ox)
-    # print(oy)
-    observer = vis.Point(ox,oy)
+    observer = vis.Point(obsv_x, obsv_y)
     env = vis.Environment(obstacles)
     observer.snap_to_boundary_of(env, epsilon)
     observer.snap_to_vertices_of(env, epsilon)
@@ -100,6 +99,19 @@ def visible_set(gridGraph, observationPoint, obstacles):
         logger.warn('Visibility polygon is empty for {}!'.format(observationPoint))
 
     isovist.eliminate_redundant_vertices(redundant_eps)
+
+    return isovist # change to isocnt? externally convert to shapely
+
+def visible_set(gridGraph, observationPoint, obstacles):
+    # obstacles - list of visilibity polygons
+
+    # setup environment and observer location
+    ox = int((observationPoint[0]-gridGraph.origin[0])/gridGraph.img_res)
+    oy = int((-observationPoint[1]+gridGraph.origin[1])/gridGraph.img_res)+gridGraph.imgheight
+    # print(ox)
+    # print(oy)
+
+    isovist = visibility_polygon(ox, oy, env)
     isocnt = save_print_contour(isovist)
 
     # prep visualization
@@ -181,5 +193,22 @@ def save_print_contour(polygon):
     cnt = np.asarray(cnt)   # transform into np array
     return cnt 
 
+def to_shapely_poly(polygon):
+    # converts vis polygon to shapely polygon
+    boundary = [(polygon[i].x(), polygon[i].y()) for i in range(polygon.n())]
+    return Polygon(boundary)
+
+def draw(occ_grid, isovist, obsvpt):
+    grid = occ_grid.copy()
+    grid[np.where(grid == 0)] = 255
+    image = cv2.threshold(grid, 50, 255, cv2.THRESH_BINARY_INV)[1]
+    image = np.array(image, dtype=np.uint8)
+
+    isocnt = save_print_contour(isovist)
+    cv2.drawContours(image, [isocnt],-1, 0, 2)
+    cv2.circle(image, obsvpt, 5, (0,0,255), thickness=-1)
+    cv2.imshow("Visibility Polygon", image)
+    cv2.waitKey(0)
+    
 epsilon = 0.0000001
 redundant_eps = 2
