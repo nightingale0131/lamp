@@ -6,12 +6,14 @@ Node for doing checks on the costmap that move_base won't do
 
 import rospy, rospkg
 import os
+import math
 import shapely.geometry as sh
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import policy.utility as util
 from policy import tgraph
+from policy import visibility as vis
 
 from policy.msg import EdgeUpdate
 from geometry_msgs.msg import Point, Polygon, PoseWithCovarianceStamped
@@ -36,6 +38,7 @@ class EdgeObserver():
                                               queue_size=10)
 
         self.edge_updater()
+        # test visibility here
 
     def map_callback(self, data):
         # keep costmap updated
@@ -62,6 +65,11 @@ class EdgeObserver():
             if self.costmap == None:
                 continue
 
+            # create visibility submap here? 
+            rospy.loginfo("Calculating visibility polygon...")
+            self.set_visibility_polygon()
+
+            rospy.loginfo("Checking edges...")
             for (u,v) in self.base_graph.edges():
                 dist_to_u = util.euclidean_distance(self.base_graph.pos(u),
                                                     self.robot_pose)
@@ -70,6 +78,7 @@ class EdgeObserver():
 
                 if (dist_to_u <= self.robot_range) and (dist_to_v <= self.robot_range):
                     edge_state = self.check_edge(u,v)
+                    self.base_graph.set_edge_state(u,v,edge_state)
 
                     # prepare message
                     msg = EdgeUpdate(str(u), str(v), edge_state)
@@ -108,7 +117,62 @@ class EdgeObserver():
             return tgraph.BLOCKED
 
         rospy.loginfo("Path found!\n")
-        return tgraph.UNKNOWN # should return original state, need to update map
+
+        # if both vertices are visible, return UNBLOCKED, otherwise return original state
+        if self.visible(u) and self.visible(v):
+            return tgraph.UNBLOCKED
+
+        return self.base_graph.edge_state(u,v)
+
+    def set_visibility_polygon(self):
+        # 1) get submap of robot's visible range 
+        (x,y) = self.robot_pose
+        rospy.logdebug("robot loc: {:.2f}, {:.2f}".format(x,y))
+
+        vis_box = sh.box(x - self.robot_range, y - self.robot_range,
+                        x + self.robot_range, y + self.robot_range)
+        vis_submap = SubMap(self.costmap, vis_box)
+
+        # 2) extract obstacles in submap
+        obstacles = vis.find_obstacles(vis_submap.grid, thresh=50, unknown=-1)
+
+        # 3) get obsv pt in vis_submap
+        (oy, ox) = vis_submap.cell(x,y)
+
+        # 4) get visibility polygon
+        vis_poly = vis.visibility_polygon(ox, oy, obstacles)
+        # vis.save_print(vis_poly)
+
+        # 5) convert visibility polygon to shapely polygon, in the right frame
+        self.vis_poly = self.to_shapely(vis_poly, vis_submap)
+
+        # for debugging
+        # vis.draw(vis_submap.grid, vis_poly, (ox,oy), unknown=-1)
+
+    def visible(self, vertex):
+        # checks if vertex is visible to the robot
+        location = self.base_graph.pos(vertex) # convert vertex to coordinates
+        location = sh.Point(location)
+        result =  self.vis_poly.contains(location)
+
+        # debugging
+        rospy.loginfo("{} ({}) is visible: {}"
+                      .format(vertex, list(location.coords), result))
+
+        return result
+
+    def to_shapely(self, vis_poly, vis_submap):
+        boundary = []
+        rospy.logdebug("Converted visibility polygon:")
+        for i in range(vis_poly.n()):
+            px = vis_poly[i].x()
+            py = vis_poly[i].y()
+            (x,y) = vis_submap.coord(py, px)
+            boundary.append((x,y))
+
+            rospy.logdebug(" {:.2f}, {:.2f}".format(x, y))
+
+        return sh.Polygon(boundary)
 
     def point_to_tuple(self, point):
         return "({:.2f},{:.2f})".format(point.x, point.y)
@@ -120,17 +184,24 @@ class SubMap():
         # polygon -> shapely polygon
 
         boundary = polygon
-        (self.minx, self.miny, self.maxx, self.maxy) = boundary.bounds # m
+        # (self.minx, self.miny, self.maxx, self.maxy) = boundary.bounds # m
+        (minx, miny, maxx, maxy) = boundary.bounds # m
         self.res = costmap.info.resolution       # m/cell
 
         origin = costmap.info.origin.position   # m 
         map_width = costmap.info.width          # cell
         map_height = costmap.info.height        # cell
 
-        leftpx = max(0, int((self.minx - origin.x)/self.res))
-        rightpx = min(map_width - 1, int((self.maxx - origin.x)/self.res))
-        toppx = max(0, int((self.miny - origin.y)/self.res))
-        botpx = min(map_height - 1, int((self.maxy - origin.y)/self.res))
+        # min/max adjustments
+        self.minx = max(minx, origin.x)
+        self.maxx = min(maxx, origin.x + map_width*self.res)
+        self.miny = max(miny, origin.y)
+        self.maxy = min(maxy, origin.y + map_height*self.res)
+
+        leftpx = int((self.minx - origin.x)/self.res)
+        rightpx = int((self.maxx - origin.x)/self.res)
+        toppx = int((self.miny - origin.y)/self.res)
+        botpx = int((self.maxy - origin.y)/self.res)
 
         rospy.loginfo("Extraction site: left: {}, right: {}, top: {}, bottom: {}"
                 .format(leftpx, rightpx, toppx, botpx))
@@ -174,6 +245,18 @@ class SubMap():
         row = int((y - self.miny)/self.res)
 
         return (row, col)
+
+    def coord(self, row, col):
+        # given pixel, return coord of center of pixel
+        assert (col >= 0 and col < self.width), (
+            "col: {}, width: {}".format(col, self.width))
+        assert (row >= 0 and row < self.height), (
+            "row: {}, height: {}".format(row, self.height))
+
+        x = col*self.res + self.minx + self.res/2
+        y = row*self.res + self.miny + self.res/2
+
+        return (x,y)
 
     def neighbours(self, cell):
         # 4-way grid, return adjacent cells that are not occupied
