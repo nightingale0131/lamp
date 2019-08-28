@@ -248,13 +248,15 @@ class SubMap():
 
     def coord(self, row, col):
         # given pixel, return coord of center of pixel
-        assert (col >= 0 and col < self.width), (
-            "col: {}, width: {}".format(col, self.width))
-        assert (row >= 0 and row < self.height), (
-            "row: {}, height: {}".format(row, self.height))
+        c = int(col)
+        r = int(row)
+        assert (c >= 0 and c < self.width), (
+            "col: {}, width: {}".format(c, self.width))
+        assert (r >= 0 and r < self.height), (
+            "row: {}, height: {}".format(r, self.height))
 
-        x = col*self.res + self.minx + self.res/2
-        y = row*self.res + self.miny + self.res/2
+        x = c*self.res + self.minx + self.res/2
+        y = r*self.res + self.miny + self.res/2
 
         return (x,y)
 
