@@ -312,7 +312,8 @@ class MoveBaseSeq():
         v = data.v
         if v.isdigit(): v = int(v)
 
-        self.base_graph.set_edge_state(u,v,data.state)
+        if data.state != tgraph.UNKNOWN:
+            self.base_graph.set_edge_state(u,v,data.state)
 
         if data.state == tgraph.BLOCKED:
             self.base_graph.set_edge_weight(u,v,float('inf'))
