@@ -86,6 +86,8 @@ class EdgeObserver():
                     rate.sleep() # not sure if this is the right place to put this
 
     def check_edge(self, u, v):
+        rospy.loginfo("-----")
+
         polygon = self.base_graph.get_polygon(u,v)
         bufpoly = polygon.buffer(PADDING)
         submap = SubMap(self.costmap, bufpoly)
@@ -102,9 +104,8 @@ class EdgeObserver():
 
         # TODO: check if area around start or goal is not completely occupied
         if not (submap.passable(startpx) and submap.passable(goalpx)):
-            rospy.loginfo("No path found because start or goal not valid!\n")
+            rospy.loginfo("No path found because start or goal not valid!")
             return tgraph.BLOCKED
-
 
         # see if A* returns a valid path
         came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
@@ -113,10 +114,10 @@ class EdgeObserver():
         try:
             self.path = util.reconstruct_path(came_from, startpx, goalpx)
         except KeyError:
-            rospy.loginfo("No path found!\n")
+            rospy.loginfo("No path found!")
             return tgraph.BLOCKED
 
-        rospy.loginfo("Path found!\n")
+        rospy.loginfo("Path found!")
 
         # if both vertices are visible, return UNBLOCKED, otherwise return original state
         if self.visible(u) and self.visible(v):
@@ -216,9 +217,15 @@ class SubMap():
         self.grid = np.empty((self.height, self.width))
 
         # fill in rows of grid
-        for row in range(toppx, botpx + 1):
-            self.grid[(row - toppx), :] = costmap.data[(row*map_width + leftpx):(row*map_width +
-                rightpx + 1)]
+        for row in range(toppx, botpx):
+            try:
+                self.grid[(row - toppx), :] = costmap.data[(row*map_width + leftpx):(row*map_width +
+                    rightpx + 1)]
+            except ValueError, e:
+                # fill in with unblocked 
+                self.grid[(row - toppx), :] = np.zeros(self.width)
+                rospy.logwarn("{}".format(e))
+                rospy.logwarn("row: {}, map_width: {}".format(row, map_width))
 
     def in_bounds(self, cell):
         (row, col) = cell
