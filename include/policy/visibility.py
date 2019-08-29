@@ -58,14 +58,14 @@ def intersection_point(L1, L2):
         # print("Line: {} \nEdge: {}".format(L1, L2))
         return False
 
-def find_obstacles(occ_grid, thresh=125):
+def find_obstacles(occ_grid, thresh=125, unknown=0):
     # occ_grid needs to be cv2 object
     # returns list of obstacles (list of polygons)
     # threshold is a little low because I was trying to exclude unknown areas as obstacles
     grid = occ_grid.copy()
 
-    grid[np.where(grid == 0)] = 255
-    thresh_grid = cv2.threshold(grid, thresh, 255, cv2.THRESH_BINARY_INV)[1]
+    grid[np.where(grid == unknown)] = 255
+    thresh_grid = cv2.threshold(grid, thresh, 255, cv2.THRESH_BINARY)[1]
     thresh_grid = np.array(thresh_grid, dtype=np.uint8)
 
     # cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -193,16 +193,19 @@ def save_print_contour(polygon):
     cnt = np.asarray(cnt)   # transform into np array
     return cnt 
 
-def to_shapely_poly(polygon):
+def to_shapely(polygon):
     # converts vis polygon to shapely polygon
     boundary = [(polygon[i].x(), polygon[i].y()) for i in range(polygon.n())]
     return Polygon(boundary)
 
-def draw(occ_grid, isovist, obsvpt):
+def draw(occ_grid, isovist, obsvpt, unknown=0):
     grid = occ_grid.copy()
-    grid[np.where(grid == 0)] = 255
+    grid[np.where(grid == unknown)] = 255
     image = cv2.threshold(grid, 50, 255, cv2.THRESH_BINARY_INV)[1]
     image = np.array(image, dtype=np.uint8)
+    image[np.where(image == 0)] = 100
+
+    imheight, imwidth = image.shape
 
     isocnt = save_print_contour(isovist)
     cv2.drawContours(image, [isocnt],-1, 0, 2)
