@@ -65,7 +65,7 @@ class EdgeObserver():
             if self.costmap == None:
                 continue
 
-            # create visibility submap here? 
+            rospy.loginfo("-----")
             rospy.loginfo("Calculating visibility polygon...")
             self.set_visibility_polygon()
 
@@ -133,6 +133,9 @@ class EdgeObserver():
         vis_box = sh.box(x - self.robot_range, y - self.robot_range,
                         x + self.robot_range, y + self.robot_range)
         vis_submap = SubMap(self.costmap, vis_box)
+        # print("minx={:.5f}, maxx={:.5f}, miny={:.5f}, maxy={:.5f}"
+              # .format(vis_submap.minx, vis_submap.maxx, 
+                      # vis_submap.miny, vis_submap.maxy))
 
         # 2) extract obstacles in submap
         obstacles = vis.find_obstacles(vis_submap.grid, thresh=50, unknown=-1)
@@ -204,6 +207,10 @@ class SubMap():
         toppx = int((self.miny - origin.y)/self.res)
         botpx = int((self.maxy - origin.y)/self.res)
 
+        # to avoid 
+        if rightpx >= map_width: rightpx = map_width - 1
+        if botpx >= map_height: botpx = map_height - 1
+
         rospy.loginfo("Extraction site: left: {}, right: {}, top: {}, bottom: {}"
                 .format(leftpx, rightpx, toppx, botpx))
 
@@ -217,15 +224,18 @@ class SubMap():
         self.grid = np.empty((self.height, self.width))
 
         # fill in rows of grid
-        for row in range(toppx, botpx):
+        for row in range(toppx, botpx + 1):
             try:
-                self.grid[(row - toppx), :] = costmap.data[(row*map_width + leftpx):(row*map_width +
-                    rightpx + 1)]
+                self.grid[(row - toppx), :] = costmap.data[(row*map_width + 
+                                                            leftpx):(row*map_width +
+                                                                     rightpx + 1)]
             except ValueError, e:
                 # fill in with unblocked 
                 self.grid[(row - toppx), :] = np.zeros(self.width)
                 rospy.logwarn("{}".format(e))
-                rospy.logwarn("row: {}, map_width: {}".format(row, map_width))
+                rospy.logwarn("row: {}, map_width: {}, map_height: {}".format(row,
+                                                                              map_width,
+                                                                              map_height))
 
     def in_bounds(self, cell):
         (row, col) = cell
@@ -285,7 +295,12 @@ class SubMap():
         if not (self.passable(cell1) and self.passable(cell2)): return float('inf')
 
         if (abs(c1 - c2) == 1 or abs(r1 - r2) == 1):
-            return 1 + self.grid[r1, c1] + self.grid[r2,c2] 
+            w1 = self.grid[r1, c1]
+            w2 = self.grid[r2, c2]
+
+            assert(w1 >= 0 and w2 >= 0),("({},{}): {}, ({},{}): {}"
+                                         .format(r1,c1,w1,r2,c2,w2))
+            return 1 + w1 + w2
         else: return float('inf')
 
     def dist(self, cell1, cell2):
