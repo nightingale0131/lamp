@@ -51,6 +51,8 @@ class MoveBaseSeq():
             self.path = self.node.path
 
         self.set_new_path(self.path, self.base_graph) # sets pose_seq and goal_cnt
+        self.vnext = self.path[1]
+        self.vprev = self.path[0] 
 
         # connect to move_base node
         rospy.loginfo("Waiting for move_base action server...")
@@ -63,6 +65,10 @@ class MoveBaseSeq():
         rospy.loginfo("Starting goals achievements...")
         self.movebase_client()
 
+    def update_current_edge(self):
+        self.vprev = self.vnext
+        self.vnext = self.path[self.goal_cnt]
+
     def active_cb(self):
         rospy.loginfo("Goal pose " + str(self.goal_cnt) + " is now being processed by the Action server...")
 
@@ -74,6 +80,7 @@ class MoveBaseSeq():
 
         rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ":\n" +
                       self.print_pose_in_euler(pose))
+        rospy.loginfo("vprev = {}, vnext = {}".format(self.vprev, self.vnext))
 
         # check if robot is close enough to send next goal
         position = feedback.base_position.pose.position
@@ -89,10 +96,15 @@ class MoveBaseSeq():
 
         if dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt < len(self.pose_seq) - 1):
             rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached!")
+            if self.vprev != self.vnext:
+                self.base_graph.set_edge_state(self.vprev, self.vnext, tgraph.UNBLOCKED)
             self.goal_cnt += 1
+            self.vprev = self.vnext
+            self.vnext = self.path[self.goal_cnt]
             self.set_and_send_next_goal()
         elif dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt == len(self.pose_seq) - 1):
             rospy.loginfo("Reached end of path")
+            self.base_graph.set_edge_state(self.vprev, self.vnext, tgraph.UNBLOCKED)
             # observe and select next node based on state of observed feature
             if self.observe == False and self.going_to_final_goal() != True:
                 self.observe == True
@@ -283,7 +295,6 @@ class MoveBaseSeq():
 
     def replan(self):
         rospy.loginfo("Replanning on graph...")
-        # go back to the previous node. But this might not be desired behaviour.
         start = self.path[max(0,self.goal_cnt - 1)]
         dist, paths = nx.single_source_dijkstra(self.base_graph.graph, start, 'g')
 
@@ -299,8 +310,9 @@ class MoveBaseSeq():
         curr_poly = self.base_graph.get_polygon(self.path[0], self.path[1])
         if self.base_graph.in_polygon(self.pos, curr_poly):
             self.path.pop(0)
-
+        
         self.set_new_path(self.path, self.base_graph, at_first_node = False)
+        self.vnext = self.path[self.goal_cnt]
         self.set_and_send_next_goal()
         self.path_blocked = False
 
