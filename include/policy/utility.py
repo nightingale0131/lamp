@@ -131,6 +131,7 @@ def a_star_search(graph, start, goal, check_edges=False):
     while not frontier.empty():
         current = frontier.pop()
 
+
         if current == goal:
             break
 
@@ -138,6 +139,7 @@ def a_star_search(graph, start, goal, check_edges=False):
             if check_edges:
                 graph._edge_check((current,next))
             new_cost = cost_so_far[current] + graph.weight(current, next)
+            assert (new_cost >= 0), ("Cost is negative: {:.2f}".format(new_cost))
             if (next not in cost_so_far or new_cost < cost_so_far[next]) and new_cost < 99999:
                 cost_so_far[next] = new_cost
                 priority = new_cost + graph.dist(goal, next)
