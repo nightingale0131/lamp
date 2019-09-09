@@ -15,7 +15,7 @@ import policy.utility as util
 from policy import tgraph
 from policy import visibility as vis
 
-from policy.msg import EdgeUpdate
+from policy.msg import EdgeUpdate, PrevVertex
 from geometry_msgs.msg import Point, Polygon, PoseWithCovarianceStamped
 from nav_msgs.msg import OccupancyGrid
 
@@ -23,16 +23,20 @@ PADDING = 0.3 # must be greater than xy_goal_tolerance
 
 class EdgeObserver():
     def __init__(self, base_graph):
-        rospy.init_node('check_costmap')
+        # assumes base_graph starts with 's'
+        rospy.init_node('edge_observer')
 
         self.base_graph = base_graph
         self.costmap = None
-        self.robot_pose = self.base_graph.pos('s')
+        self.vprev = 's'
+        self.robot_pose = None
         self.robot_range = self.get_robot_range()
+        self.travelled_dist = 0 # keep track of how far robot has travelled
 
         self.map_sub = rospy.Subscriber("move_base/global_costmap/costmap", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
         self.pose_sub = rospy.Subscriber("amcl_pose", PoseWithCovarianceStamped,
                                                 self.pose_callback, queue_size=1)
+        self.v_sub = rospy.Subscriber("policy/prev_vertex", PrevVertex, queue_size=1)
 
         self.edge_state_pub = rospy.Publisher("policy/edge_update", EdgeUpdate,
                                               queue_size=10)
@@ -48,7 +52,25 @@ class EdgeObserver():
         # keep robot location updated
         x = data.pose.pose.position.x
         y = data.pose.pose.position.y
+
+        self.travel_dist(x,y)
         self.robot_pose = (x,y)
+
+    def travel_dist(self, x, y, reset=False):
+        if reset == True:
+            self.travelled_dist = 0
+
+        if self.robot_pose == None: return 0
+
+        dist = util.euclidean_distance((x,y), self.robot_pose)
+
+        self.travelled_dist += dist
+
+    def v_callback(self, data):
+        # vertex robot is leaving
+        v = data.v
+        if v.isdigit(): v = int(v)
+        self.vprev = v
 
     def get_robot_range(self):
         # select range of robot's sensors, set by move_base parameters
@@ -59,13 +81,14 @@ class EdgeObserver():
 
     def edge_updater(self):
         # publishes to edge_state
-        rate = rospy.Rate(10)   # 10 Hz
+        rate = rospy.Rate(5)   # Hz
         while not rospy.is_shutdown():
             # check that costmap subscriber has started receiving messages
-            if self.costmap == None:
+            if self.costmap == None or self.robot_pose == None:
                 continue
 
             rospy.loginfo("-----")
+            rospy.loginfo("Travelled so far: {:.3f} m".format(self.travelled_dist))
             rospy.loginfo("Calculating visibility polygon...")
             self.set_visibility_polygon()
 
@@ -81,7 +104,7 @@ class EdgeObserver():
                     self.base_graph.set_edge_state(u,v,edge_state)
 
                     # prepare message
-                    msg = EdgeUpdate(str(u), str(v), edge_state)
+                    msg = EdgeUpdate(str(u), str(v), edge_state, self.travelled_dist)
                     self.edge_state_pub.publish(msg)
                     rate.sleep() # not sure if this is the right place to put this
 
@@ -100,6 +123,7 @@ class EdgeObserver():
         startpx = submap.cell(startx, starty)
         goalpx = submap.cell(goalx, goaly)
 
+        rospy.loginfo("Robot leaving from {}".format(self.vprev))
         rospy.loginfo("Searching for path from {} to {}...".format(u,v))
 
         # TODO: check if area around start or goal is not completely occupied
@@ -119,8 +143,17 @@ class EdgeObserver():
 
         rospy.loginfo("Path found!")
 
-        # if both vertices are visible, return UNBLOCKED, otherwise return original state
-        if self.visible(u) and self.visible(v):
+        # if both vertices are visible, return UNBLOCKED, 
+        # if one vertex is visible and the other one is where we came from, return UNBLOCKED
+        # otherwise return original state
+        u_is_visible = self.visible(u)
+        v_is_visible = self.visible(v)
+
+        if u_is_visible and v_is_visible:
+            return tgraph.UNBLOCKED
+        elif self.vprev == u and v_is_visible:
+            return tgraph.UNBLOCKED
+        elif self.vprev == v and u_is_visible:
             return tgraph.UNBLOCKED
 
         return self.base_graph.edge_state(u,v)

@@ -20,7 +20,7 @@ from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped, Polygon
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from policy.srv import CheckEdge
-from policy.msg import EdgeUpdate
+from policy.msg import EdgeUpdate, PrevVertex
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 
@@ -43,6 +43,7 @@ class MoveBaseSeq():
                                                 self.edge_callback, queue_size=5)
 
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
+        self.v_publisher = rospy.Publisher("policy/prev_vertex", PrevVertex, queue_size=10)
         
         if policy == None:
             self.path = path
@@ -65,10 +66,6 @@ class MoveBaseSeq():
         rospy.loginfo("Starting goals achievements...")
         self.movebase_client()
 
-    def update_current_edge(self):
-        self.vprev = self.vnext
-        self.vnext = self.path[self.goal_cnt]
-
     def active_cb(self):
         rospy.loginfo("Goal pose " + str(self.goal_cnt) + " is now being processed by the Action server...")
 
@@ -81,6 +78,7 @@ class MoveBaseSeq():
         rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ":\n" +
                       self.print_pose_in_euler(pose))
         rospy.loginfo("vprev = {}, vnext = {}".format(self.vprev, self.vnext))
+        self.v_publisher.publish(str(self.vprev))
 
         # check if robot is close enough to send next goal
         position = feedback.base_position.pose.position
@@ -99,8 +97,11 @@ class MoveBaseSeq():
             if self.vprev != self.vnext:
                 self.base_graph.set_edge_state(self.vprev, self.vnext, tgraph.UNBLOCKED)
             self.goal_cnt += 1
+
+            # update which edge robot is traversing
             self.vprev = self.vnext
             self.vnext = self.path[self.goal_cnt]
+
             self.set_and_send_next_goal()
         elif dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt == len(self.pose_seq) - 1):
             rospy.loginfo("Reached end of path")
@@ -341,31 +342,6 @@ class MoveBaseSeq():
                         rospy.loginfo("Path is blocked!")
                         self.replan()
                         break
-
-    def check_edge_client(self, u, v, polygon):
-        # u,v - vertices in tgraph
-        # polygon - shapely polygon
-        # OBSOLETE
-
-        # convert vertices -> coordinates -> Point
-        ux, uy = self.base_graph.pos(u)
-        u_pt = Point(ux, uy, 0)
-        vx, vy = self.base_graph.pos(v)
-        v_pt = Point(vx, vy, 0)
-
-        # inflate polygon and convert shapely polygon -> ros Polygon
-        polygon = polygon.buffer(PADDING)
-        ros_polygon = Polygon([Point(p[0],p[1],0) for p in polygon.exterior.coords])
-
-        # call service
-        rospy.wait_for_service('check_edge')
-        try:
-            check_edge = rospy.ServiceProxy('check_edge', CheckEdge)
-            result = check_edge(u_pt, v_pt, ros_polygon)
-            return result.result
-        except rospy.ServiceException, e:
-            print("Service call failed: {}".format(e))
-
 
 def to_pose_stamped(x,y,z):
     pose = PoseStamped()
