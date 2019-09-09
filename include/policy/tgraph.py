@@ -42,6 +42,7 @@ class TGraph(object):
         polygon_dict - dict: {edge: polygon, ...}
         """
         self.graph = nxgraph
+        self.goal = 'g'
 
         logger.info("Validating input...")
         # check to make sure each edge has an associated polygon
@@ -149,6 +150,15 @@ class TGraph(object):
                     self.set_edge_weight(u,v,float('inf'))
 
         return self.graph.edge[u][v]['state']
+
+    def observe(self, v):
+        # estimate what robot will observe at vertex v
+        # Basically assume states of adjacent edges will be known
+        edges = []
+        for u in self.graph.neighbors_iter(v):
+            edges.append((u,v))
+
+        return edges
 
     def draw_vertices(self, ax):
         # vertices are points or portals/lines
