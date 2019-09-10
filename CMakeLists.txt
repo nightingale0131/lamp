@@ -50,11 +50,11 @@ catkin_python_setup()
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+	EdgeUpdate.msg
+	PrevVertex.msg
+)
 
 ## Generate services in the 'srv' folder
 add_service_files(DIRECTORY srv
@@ -108,7 +108,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES policy
-#  CATKIN_DEPENDS actionlib move_base_msgs rospy
+ CATKIN_DEPENDS actionlib move_base_msgs rospy message_runtime
 #  DEPENDS system_lib
 )
 
