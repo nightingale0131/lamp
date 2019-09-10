@@ -43,7 +43,7 @@ class LRPP():
 
         # setup initial start pose for publishing
         self.start_pose = Pose(Point(x,y,0.0),
-                Quaternion(*(quaternion_from_euler(0, 0, 1.57))))
+                Quaternion(*(quaternion_from_euler(0, 0, 0))))
 
         # set all edges to UNBLOCKED for initial map
         for (u,v) in base_tgraph.edges():
@@ -62,9 +62,9 @@ class LRPP():
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
         self.v_publisher = rospy.Publisher("policy/prev_vertex", PrevVertex, queue_size=10)
         self.amcl_publisher = rospy.Publisher("initialpose", PoseWithCovarianceStamped,
-                queue_size=10)
+                queue_size=10, latch=True)
         self.gaz_publisher = rospy.Publisher("gazebo/set_model_state", ModelState,
-                queue_size=10)
+                queue_size=10, latch=True)
 
         self.start_task()
         rospy.spin()
@@ -83,10 +83,10 @@ class LRPP():
         self.vnext = self.path[1]
         self.vprev = self.path[0] 
 
-        """
         # setup task environment
         # 1. Move jackal back to beginning
-        model_state = ModelState("jackal", self.start_pose,
+        model_state = ModelState("jackal", 
+                Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
                 Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
         self.gaz_publisher.publish(model_state) 
 
@@ -101,7 +101,6 @@ class LRPP():
 
         # 3. reset costmap using service /move_base/clear_costmaps
         # 4. Set up any obstacles
-        """
 
         # wait for input before sending goals to move_base
         raw_input('Press any key to begin execution of task {}'.format(self.tcount))
