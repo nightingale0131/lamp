@@ -165,6 +165,9 @@ class LRPP():
         # self.M.append(new_map)
 
     def shutdown(self):
+        # print maps
+        for m in self.M:
+            print(m.G)
         rospy.loginfo("Shutting down...")
         rospy.signal_shutdown("Finished tasks.")
 
@@ -476,7 +479,7 @@ if __name__ == '__main__':
     poly_dict = tgraph.polygon_dict_from_csv(pkgdir + '/tests/tristan_maze_polygons.csv')
 
     # set number of tasks
-    ntasks = 2
+    ntasks = 1
 
     # setup logging
     logging.basicConfig(filename = pkgdir + '/lrpp2_debug.log', filemode='w', level=logging.INFO)
