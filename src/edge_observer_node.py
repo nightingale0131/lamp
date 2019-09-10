@@ -36,7 +36,7 @@ class EdgeObserver():
         self.map_sub = rospy.Subscriber("move_base/global_costmap/costmap", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
         self.pose_sub = rospy.Subscriber("amcl_pose", PoseWithCovarianceStamped,
                                                 self.pose_callback, queue_size=1)
-        self.v_sub = rospy.Subscriber("policy/prev_vertex", PrevVertex, queue_size=1)
+        self.v_sub = rospy.Subscriber("policy/prev_vertex", PrevVertex, self.v_callback, queue_size=1)
 
         self.edge_state_pub = rospy.Publisher("policy/edge_update", EdgeUpdate,
                                               queue_size=10)
