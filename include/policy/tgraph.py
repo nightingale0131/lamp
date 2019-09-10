@@ -103,11 +103,18 @@ class TGraph(object):
 
         return vset
 
+    def vertices(self, data=False):
+        return self.graph.nodes(data=data)
+
     def edge_state(self, u, v):
         return self.graph[u][v]['state']
 
     def edges(self, data=False):
         return self.graph.edges(data=data)
+
+    def weight(self, u, v):
+        # assumes weights are set correctly (blocked edges are inf)
+        return self.graph.edge[u][v]['weight']
     
     def set_edge_state(self, u, v, state):
         assert (state == UNBLOCKED or state == BLOCKED or state == UNKNOWN), (

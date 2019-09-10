@@ -9,12 +9,11 @@ import networkx as nx
 import cv2
 
 import actionlib
-from policy.gridgraph import GridGraph, LiveGridGraph
 from policy.classes import Map
 from policy import utility as util
 from policy import rpp, timing, tgraph
 
-from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import OccupancyGrid, Path
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
@@ -34,13 +33,13 @@ class LRPP():
         self.poly_dict = polygon_dict
 
         base_tgraph = tgraph.TGraph(self.base_graph, self.poly_dict)
-        self.pos = self.base_tgraph.pos('s')
+        self.pos = base_tgraph.pos('s')
         # set all edges to UNBLOCKED
-        for e in base_tgraph.edges():
-            base_tgraph.set_edge_state(tgraph.UNBLOCKED)
+        for (u,v) in base_tgraph.edges():
+            base_tgraph.set_edge_state(u,v,tgraph.UNBLOCKED)
         self.base_map = Map(base_tgraph)
-        self.features = self.base_map.features
-        self.M = [base_map] # initialize map storage
+        self.features = self.base_map.features()
+        self.M = [self.base_map] # initialize map storage
         self.T = T  # number of tasks to execute
         self.tcount = 1 # current task being executed
 
@@ -68,6 +67,9 @@ class LRPP():
         # setup policy in set_new_path
         self.node = policy[0].next_node()
         self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
+
+        self.vnext = self.path[1]
+        self.vprev = self.path[0] 
 
         # wait for input before sending goals to move_base
         raw_input('Press any key to begin execution of task {}'.format(self.tcount))
@@ -190,7 +192,7 @@ class LRPP():
         self.set_and_send_next_goal()
 
     def going_to_final_goal(self):
-        if self.path[self.goal_cnt] == self.base_map.goal: return True
+        if self.path[self.goal_cnt] == self.base_map.G.goal: return True
         else: return False
 
     def done_cb(self, status, result):
