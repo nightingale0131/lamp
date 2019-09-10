@@ -196,6 +196,15 @@ class TGraph(object):
         new = type(self)(self.graph)
         return new
 
+    def __str__(self):
+        msg = "#Nodes: {}   Edges:\n".format(self.graph.number_of_nodes())
+        for (u,v) in self.edges():
+            msg += "({},{})\t{}\t{:.3f}\n".format(u,v,self.graph.edge[u][v]['state'],
+                    self.graph.edge[u][v]['weight'])
+
+        return msg
+
+
 def polygon_dict_from_csv(path):
     # each line in csv should be in following format:
     #   u,v,minx,maxx,miny,maxy
