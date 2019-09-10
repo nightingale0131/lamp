@@ -20,6 +20,7 @@ def filter1(supermaps, new_map):
         in_agreement, new_info = m.agrees_with(new_map)
         if in_agreement:
             agree_once = True
+            m.n += 1
             print("New map agrees with supermap {}".format(i))
             print(new_info)
 

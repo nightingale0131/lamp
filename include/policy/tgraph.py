@@ -19,10 +19,6 @@ import utility as util
 
 # import timing
 
-UNKNOWN = -1
-UNBLOCKED = 0
-BLOCKED = 1
-
 class TGraph(object):
     """
     Topological graph where vertices can be a point, line, or set of points (future work).
@@ -34,6 +30,9 @@ class TGraph(object):
 
     boxes, points, lines are defined using Shapely library
     """
+    UNKNOWN = -1
+    UNBLOCKED = 0
+    BLOCKED = 1
 
     def __init__(self, nxgraph, polygon_dict=None):
         """
@@ -52,7 +51,7 @@ class TGraph(object):
         else:
             for u,v in self.graph.edges():
                 # set edge attributes
-                self.set_edge_state(u, v, UNKNOWN)
+                self.set_edge_state(u, v, self.UNKNOWN)
                 self.set_edge_weight(u, v, self.min_mid_dist(u,v))
                 try:
                     self.graph.edge[u][v]['polygon'] = polygon_dict[(u,v)]
@@ -121,7 +120,7 @@ class TGraph(object):
         return self.graph.edge[u][v]['weight']
     
     def set_edge_state(self, u, v, state):
-        assert (state == UNBLOCKED or state == BLOCKED or state == UNKNOWN), (
+        assert (state == self.UNBLOCKED or state == self.BLOCKED or state == self.UNKNOWN), (
             "Attempted to assign invalid state ({}) to edge ({},{}).".format(state, u, v))
 
         self.graph.edge[u][v]['state'] = state
@@ -139,10 +138,10 @@ class TGraph(object):
         # Also returns updated state of edge
 
         # don't want to change edge state if it is already set to UNBLOCKED
-        if self.graph.edge[u][v]['state'] != UNBLOCKED:
+        if self.graph.edge[u][v]['state'] != self.UNBLOCKED:
             # if path is empty, planner failed to find a valid path so edge must be blocked
             if path == []:
-                self.set_edge_state(u,v,BLOCKED)
+                self.set_edge_state(u,v,self.BLOCKED)
                 self.set_edge_weight(u,v,float('inf'))
             else:
                 path = LineString(path)
@@ -155,9 +154,9 @@ class TGraph(object):
                 path_in_submap = infl_poly.contains(path)
 
                 if path_in_submap and set_unblocked: 
-                    self.set_edge_state(u,v,UNBLOCKED)
+                    self.set_edge_state(u,v,self.UNBLOCKED)
                 elif not path_in_submap: 
-                    self.set_edge_state(u,v,BLOCKED)
+                    self.set_edge_state(u,v,self.BLOCKED)
                     self.set_edge_weight(u,v,float('inf'))
 
         return self.graph.edge[u][v]['state']
@@ -196,6 +195,15 @@ class TGraph(object):
     def __copy__(self):
         new = type(self)(self.graph)
         return new
+
+    def __str__(self):
+        msg = "#Nodes: {}   Edges:\n".format(self.graph.number_of_nodes())
+        for (u,v) in self.edges():
+            msg += "({},{})\t{}\t{:.3f}\n".format(u,v,self.graph.edge[u][v]['state'],
+                    self.graph.edge[u][v]['weight'])
+
+        return msg
+
 
 def polygon_dict_from_csv(path):
     # each line in csv should be in following format:

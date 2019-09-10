@@ -48,7 +48,7 @@ def get_knownG(features, supermaps, belief):
         for i in belief:
             new_state = supermaps[i].feature_state(feature)
 
-            if new_state != tgraph.UNKNOWN:
+            if new_state != base_map.G.UNKNOWN:
                 if state == None: state = new_state
                 if state != None and new_state != state: is_known = False
 
@@ -60,7 +60,7 @@ def get_knownG(features, supermaps, belief):
         # if is_known: known_features[feature] = state
         (a,b) = feature
         knownG.add_edge(a,b)
-        if is_known and state != tgraph.BLOCKED: 
+        if is_known and state != base_map.G.BLOCKED: 
             # assuming feature is an edge that looks like (a,b)
             knownG[a][b]['weight'] = base_map.G.weight(a,b) 
         else:
@@ -230,7 +230,7 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
             is_new_outcome = True
             possible_state = supermaps[i].feature_state(feature)
 
-            if possible_state == tgraph.UNKNOWN:
+            if possible_state == supermaps[i].G.UNKNOWN:
                 # if the feature state is unknown in supermap[i]
                 unknown_i.append(i)
                 has_unknowns = True

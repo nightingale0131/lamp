@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import policy.utility as util
-from policy import tgraph
+from policy.tgraph import TGraph, polygon_dict_from_csv
 from policy import visibility as vis
 
 from policy.msg import EdgeUpdate, PrevVertex
@@ -36,7 +36,7 @@ class EdgeObserver():
         self.map_sub = rospy.Subscriber("move_base/global_costmap/costmap", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
         self.pose_sub = rospy.Subscriber("amcl_pose", PoseWithCovarianceStamped,
                                                 self.pose_callback, queue_size=1)
-        self.v_sub = rospy.Subscriber("policy/prev_vertex", PrevVertex, queue_size=1)
+        self.v_sub = rospy.Subscriber("policy/prev_vertex", PrevVertex, self.v_callback, queue_size=1)
 
         self.edge_state_pub = rospy.Publisher("policy/edge_update", EdgeUpdate,
                                               queue_size=10)
@@ -129,7 +129,7 @@ class EdgeObserver():
         # TODO: check if area around start or goal is not completely occupied
         if not (submap.passable(startpx) and submap.passable(goalpx)):
             rospy.loginfo("No path found because start or goal not valid!")
-            return tgraph.BLOCKED
+            return TGraph.BLOCKED
 
         # see if A* returns a valid path
         came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
@@ -139,7 +139,7 @@ class EdgeObserver():
             self.path = util.reconstruct_path(came_from, startpx, goalpx)
         except KeyError:
             rospy.loginfo("No path found!")
-            return tgraph.BLOCKED
+            return TGraph.BLOCKED
 
         rospy.loginfo("Path found!")
 
@@ -150,11 +150,11 @@ class EdgeObserver():
         v_is_visible = self.visible(v)
 
         if u_is_visible and v_is_visible:
-            return tgraph.UNBLOCKED
+            return TGraph.UNBLOCKED
         elif self.vprev == u and v_is_visible:
-            return tgraph.UNBLOCKED
+            return TGraph.UNBLOCKED
         elif self.vprev == v and u_is_visible:
-            return tgraph.UNBLOCKED
+            return TGraph.UNBLOCKED
 
         return self.base_graph.edge_state(u,v)
 
@@ -348,9 +348,9 @@ if __name__ == '__main__':
     rospack = rospkg.RosPack()
     pkgdir = rospack.get_path('policy')
     graph = nx.read_yaml(pkgdir + '/tests/tristan_maze_tgraph.yaml')
-    poly_dict = tgraph.polygon_dict_from_csv(pkgdir + '/tests/tristan_maze_polygons.csv')
+    poly_dict = polygon_dict_from_csv(pkgdir + '/tests/tristan_maze_polygons.csv')
 
-    base_graph = tgraph.TGraph(graph, poly_dict)
+    base_graph = TGraph(graph, poly_dict)
 
     try:
         EdgeObserver(base_graph)

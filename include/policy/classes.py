@@ -27,6 +27,7 @@ class Node(object):
         self.s = state
         self.opair = observation
         self.path = path
+        # modify path to include edge being observed
 
     def add_outcome(self, node):
         self.children.append(node)

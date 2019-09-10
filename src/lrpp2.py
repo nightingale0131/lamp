@@ -6,6 +6,7 @@ import rospy, rospkg
 import math 
 import os, glob
 import networkx as nx
+import numpy as np
 import cv2
 from copy import copy
 
@@ -13,11 +14,14 @@ import actionlib
 from policy.classes import Map
 from policy import utility as util
 from policy import rpp, timing, tgraph
+from policy import mapfilters as mf
 
 from nav_msgs.msg import OccupancyGrid, Path
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
-from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseWithCovariance
+from geometry_msgs.msg import PoseWithCovariance, PoseWithCovarianceStamped, Twist, Vector3
+from gazebo_msgs.msg import ModelState
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from policy.srv import CheckEdge
 from policy.msg import EdgeUpdate, PrevVertex
@@ -34,10 +38,16 @@ class LRPP():
         self.poly_dict = polygon_dict
 
         base_tgraph = tgraph.TGraph(self.base_graph, self.poly_dict)
-        self.pos = base_tgraph.pos('s')
-        # set all edges to UNBLOCKED
+        (x,y) = base_tgraph.pos('s')
+        self.pos = (x,y)
+
+        # setup initial start pose for publishing
+        self.start_pose = Pose(Point(x,y,0.0),
+                Quaternion(*(quaternion_from_euler(0, 0, 0))))
+
+        # set all edges to UNBLOCKED for initial map
         for (u,v) in base_tgraph.edges():
-            base_tgraph.set_edge_state(u,v,tgraph.UNBLOCKED)
+            base_tgraph.set_edge_state(u,v,base_tgraph.UNBLOCKED)
         self.base_map = Map(base_tgraph)
         self.features = self.base_map.features()
         self.M = [self.base_map] # initialize map storage
@@ -45,21 +55,22 @@ class LRPP():
         self.tcount = 1 # current task being executed
 
         self.path_blocked = False # flag for path being blocked, calls reactive algo
-        self.observe = False # flag for making an observation
         self.at_final_goal = False # flag for reaching final destination
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
         self.v_publisher = rospy.Publisher("policy/prev_vertex", PrevVertex, queue_size=10)
+        self.amcl_publisher = rospy.Publisher("initialpose", PoseWithCovarianceStamped,
+                queue_size=10, latch=True)
+        self.gaz_publisher = rospy.Publisher("gazebo/set_model_state", ModelState,
+                queue_size=10, latch=True)
 
         self.start_task()
         rospy.spin()
 
     def start_task(self):
         rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
-        # create blank tgraph to fill in (make sure nothing is carried over!)
-        self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
 
         # calculate policy
         self.p = update_p_est(self.M, self.tcount) 
@@ -72,8 +83,30 @@ class LRPP():
         self.vnext = self.path[1]
         self.vprev = self.path[0] 
 
+        # setup task environment
+        # 1. Move jackal back to beginning
+        model_state = ModelState("jackal", 
+                Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
+                Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
+        self.gaz_publisher.publish(model_state) 
+
+        # 2. Set initial guess for amcl back to start 
+        init_pose = PoseWithCovarianceStamped()
+        init_pose.pose.pose = self.start_pose
+        init_pose.pose.covariance = np.zeros(36)
+        init_pose.header.stamp = rospy.Time.now()
+        init_pose.header.frame_id = "map"
+
+        self.amcl_publisher.publish(init_pose)
+
+        # 3. reset costmap using service /move_base/clear_costmaps
+        # 4. Set up any obstacles
+
         # wait for input before sending goals to move_base
         raw_input('Press any key to begin execution of task {}'.format(self.tcount))
+
+        # create blank tgraph to fill in (make sure nothing is carried over!)
+        self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
 
         # double check connection with move base
         self.check_connection()
@@ -102,7 +135,9 @@ class LRPP():
         # check if we need to keep going
         if self.tcount == self.T + 1:
             self.shutdown()
-    
+
+        # clear all non-static obstacles
+
     def check_connection(self):
         # make sure there is a connection to move_base node
         rospy.loginfo("Waiting for move_base action server...")
@@ -123,12 +158,15 @@ class LRPP():
         new_map = Map(copy(self.curr_graph))
 
         # now do comparisons and map merging??
-        # M = filter(M,new_map)
+        self.M = mf.filter1(self.M, new_map)
 
         # do no comparisons and just save the new map lol
-        self.M.append(new_map)
+        # self.M.append(new_map)
 
     def shutdown(self):
+        # print maps
+        for m in self.M:
+            print(m.G)
         rospy.loginfo("Shutting down...")
         rospy.signal_shutdown("Finished tasks.")
 
@@ -161,7 +199,7 @@ class LRPP():
         if dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt < len(self.pose_seq) - 1):
             rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached!")
             if self.vprev != self.vnext:
-                self.curr_graph.set_edge_state(self.vprev, self.vnext, tgraph.UNBLOCKED)
+                self.curr_graph.set_edge_state(self.vprev, self.vnext, self.base_map.G.UNBLOCKED)
             self.goal_cnt += 1
 
             # update which edge robot is traversing
@@ -169,28 +207,32 @@ class LRPP():
             self.vnext = self.path[self.goal_cnt]
 
             self.set_and_send_next_goal()
+
+        elif self.move_to_next_node():
+            # if node under observation is no longer unknown, move to next node
+            # selecting next node in tree and setting path
+            self.node = self.node.next_node(feature_state)
+            rospy.loginfo("Next path: {}".format(self.node.path))
+            self.set_new_path(self.node.path) # update pose seq
+            self.set_and_send_next_goal()
+
         elif dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt == len(self.pose_seq) - 1):
             rospy.loginfo("Reached end of path")
-            # observe and select next node based on state of observed feature
-            if self.observe == False and self.going_to_final_goal() != True:
-                self.observe == True
-                edge_to_observe = self.node.opair.E
-                self.make_observation(edge_to_observe)
-            # if feature is unknown move to reactive b/c it is not visible when it
-            # should've been
+            # if move_to_next_node hasn't been activated, it must've reached the goal,
+            # otherwise there is an error in the code
 
-    def make_observation(self, edge):
-        # TODO: modify to fit with new indirect inference!
-        (u,v) = edge
-        self.LiveMap._edge_check(edge)
-        feature_state = self.LiveMap.graph[u][v]['state']
-        rospy.loginfo("State of observed edge {}: {}".format(edge, feature_state))
-
-        # selecting next node in tree and setting path
-        self.node = self.node.next_node(feature_state)
-        rospy.loginfo("next path: {}".format(self.node.path))
-        self.set_new_path(self.node.path) # update pose seq
-        self.set_and_send_next_goal()
+    def move_to_next_node(self):
+        # check if observation has been satisfied
+        if self.node.opair != None:
+            (u,v) = self.node.opair.E 
+            state = self.curr_graph.edge_state(u,v)
+            if  state != self.base_map.G.UNKNOWN:
+                if state == self.base_map.G.UNBLOCKED: rospy.loginfo("Edge ({},{}) is UNBLOCKED!")
+                else: rospy.loginfo("Edge ({},{}) is BLOCKED!")
+                return True
+            else:
+                return False
+        return False
 
     def going_to_final_goal(self):
         if self.path[self.goal_cnt] == self.base_map.G.goal: return True
@@ -223,7 +265,7 @@ class LRPP():
                 # set edge to be blocked
                 vnext = self.path[self.goal_cnt]
                 vcurr = self.path[self.goal_cnt - 1]
-                self.curr_graph.set_edge_state(vnext, vcurr, tgraph.BLOCKED)
+                self.curr_graph.set_edge_state(vnext, vcurr, self.base_map.G.BLOCKED)
                 self.curr_graph.set_edge_weight(vnext, vcurr,float('inf'))
 
                 self.replan()
@@ -345,7 +387,7 @@ class LRPP():
                                                                PADDING, False)
             rospy.loginfo("result of check_edge_state: {}".format(curr_edge_state))
 
-            if curr_edge_state == tgraph.BLOCKED:
+            if curr_edge_state == self.base_map.G.BLOCKED:
                 # recalculate path on curr_graph
                 self.path_blocked = True
 
@@ -387,13 +429,13 @@ class LRPP():
         v = data.v
         if v.isdigit(): v = int(v)
 
-        if data.state != tgraph.UNKNOWN:
+        if data.state != self.base_map.G.UNKNOWN:
             self.curr_graph.set_edge_state(u,v,data.state)
 
-        if data.state == tgraph.BLOCKED:
+        if data.state == self.base_map.G.BLOCKED:
             self.curr_graph.set_edge_weight(u,v,float('inf'))
 
-            # if blocked edge is in path, replan
+            # if blocked edge is in path, replan, exits policy and goes into openloop
             if not self.path_blocked:
                 for i, v_i in enumerate(self.path):
                     if i == 0: continue
@@ -447,3 +489,5 @@ if __name__ == '__main__':
     except rospy.ROSInterruptException:
         rospy.loginfo("Finished simulation.")
 
+    # add some test data collection like:
+    #   - graph data, states, weights
