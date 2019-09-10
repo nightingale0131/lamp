@@ -35,27 +35,31 @@ class TGraph(object):
     boxes, points, lines are defined using Shapely library
     """
 
-    def __init__(self, nxgraph, polygon_dict):
+    def __init__(self, nxgraph, polygon_dict=None):
         """
         nxgraph - networkx type undirected graph
                 - vertex attr: defn: <point, line, or multipoints>
         polygon_dict - dict: {edge: polygon, ...}
         """
-        self.graph = nxgraph
+        self.graph = nxgraph.copy()
         self.goal = 'g'
 
         logger.info("Validating input...")
         # check to make sure each edge has an associated polygon
-        for u,v in self.graph.edges():
-            # set edge attributes
-            self.set_edge_state(u, v, UNKNOWN)
-            self.set_edge_weight(u, v, self.min_mid_dist(u,v))
-            try:
-                self.graph.edge[u][v]['polygon'] = polygon_dict[(u,v)]
-            except KeyError:
-                self.graph.edge[u][v]['polygon'] = polygon_dict[(v,u)]
+        if polygon_dict == None:
+            for u,v in self.graph.edges():
+                self.graph.edge[u][v]['polygon']
+        else:
+            for u,v in self.graph.edges():
+                # set edge attributes
+                self.set_edge_state(u, v, UNKNOWN)
+                self.set_edge_weight(u, v, self.min_mid_dist(u,v))
+                try:
+                    self.graph.edge[u][v]['polygon'] = polygon_dict[(u,v)]
+                except KeyError:
+                    self.graph.edge[u][v]['polygon'] = polygon_dict[(v,u)]
 
-            # TODO: check that straight line between portals ('edge') is contained in polygon
+                # TODO: check that straight line between portals ('edge') is contained in polygon
 
         logger.debug(self.graph.edges(data=True))
 
@@ -188,6 +192,10 @@ class TGraph(object):
             poly = self.graph.edge[u][v]['polygon']
             X,Y = poly.exterior.xy
             ax.plot(X,Y,'r')
+
+    def __copy__(self):
+        new = type(self)(self.graph)
+        return new
 
 def polygon_dict_from_csv(path):
     # each line in csv should be in following format:

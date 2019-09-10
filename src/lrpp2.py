@@ -7,6 +7,7 @@ import math
 import os, glob
 import networkx as nx
 import cv2
+from copy import copy
 
 import actionlib
 from policy.classes import Map
@@ -119,7 +120,7 @@ class LRPP():
         n = len(self.M)
 
         # copy current tgraph 
-        new_map = Map(self.curr_graph.copy())
+        new_map = Map(copy(self.curr_graph))
 
         # now do comparisons and map merging??
         # M = filter(M,new_map)
