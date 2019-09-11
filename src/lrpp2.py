@@ -82,14 +82,16 @@ class LRPP():
         self.p = update_p_est(self.M, self.tcount) 
         policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
         rospy.loginfo(policy[0].print_policy())
+
         # setup policy in set_new_path
+        self.pos = (0.0, 0.0)
         self.node = policy[0].next_node()
+        self.vprev = self.node.path[0] 
+
         self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
 
-        self.vnext = self.path[1]
-        self.vprev = self.path[0] 
-
         # setup task environment
+        rospy.loginfo("Setting up environment...")
         # 1. Move jackal back to beginning
         model_state = ModelState("jackal", 
                 Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
@@ -100,6 +102,7 @@ class LRPP():
         (gz_x, gz_y) = self.get_robot_pose("jackal")
         while not (util.isclose(gz_x, 2, abs_tol=0.1) and util.isclose(gz_y, -4,
             abs_tol=0.1)):
+            rospy.loginfo("Not at starting position yet!")
             (gz_x, gz_y) = self.get_robot_pose("jackal")
 
         # 2. Set initial guess for amcl back to start 
@@ -184,13 +187,20 @@ class LRPP():
     def active_cb(self):
         rospy.loginfo("Goal pose " + str(self.goal_cnt) + " is now being processed by the Action server...")
 
+        # update which edge robot is traversing
+        if self.goal_cnt == 0:
+            self.vprev = self.vnext
+        else:
+            self.vprev = self.path[self.goal_cnt - 1]
+        self.vnext = self.path[self.goal_cnt]
+
     def feedback_cb(self, feedback):
         # print current pose at each feedback
         # feedback is MoveBaseFeedback type msg
         pose = feedback.base_position.pose
         xy_goal_tolerance = rospy.get_param('/move_base/TrajectoryPlannerROS/xy_goal_tolerance')
 
-        rospy.loginfo("Feedback for goal " + str(self.goal_cnt) + ":\n" +
+        rospy.logdebug("Feedback for goal " + str(self.goal_cnt) + ":\n" +
                       self.print_pose_in_euler(pose))
         rospy.loginfo("vprev = {}, vnext = {}".format(self.vprev, self.vnext))
         self.v_publisher.publish(str(self.vprev))
@@ -213,10 +223,6 @@ class LRPP():
                 self.curr_graph.set_edge_state(self.vprev, self.vnext, self.base_map.G.UNBLOCKED)
             self.goal_cnt += 1
 
-            # update which edge robot is traversing
-            self.vprev = self.vnext
-            self.vnext = self.path[self.goal_cnt]
-
             self.set_and_send_next_goal()
 
         elif self.move_to_next_node():
@@ -235,14 +241,14 @@ class LRPP():
 
     def move_to_next_node(self):
         # check if observation has been satisfied
-        if self.node.opair != None:
+        if self.node != None and self.node.opair != None:
             (u,v) = self.node.opair.E 
             state = self.curr_graph.edge_state(u,v)
             if  state != self.base_map.G.UNKNOWN:
                 if state == self.base_map.G.UNBLOCKED: 
-                    rospy.loginfo("Edge ({},{}) is UNBLOCKED!".format(u,v))
+                    rospy.loginfo("Edge ({},{}) is UNBLOCKED! Moving to next node...".format(u,v))
                 else: 
-                    rospy.loginfo("Edge ({},{}) is BLOCKED!".format(u,v))
+                    rospy.loginfo("Edge ({},{}) is BLOCKED! Moving to next node...".format(u,v))
                 return True
             else:
                 return False
@@ -312,7 +318,7 @@ class LRPP():
             " to Action server")
         self.client.send_goal(next_goal, self.done_cb, self.active_cb, self.feedback_cb)
 
-    def set_new_path(self, path, at_first_node = True):
+    def set_new_path(self, path):
         self.path = path
         self.modify_assigned_path()
 
@@ -332,7 +338,6 @@ class LRPP():
 
         quat_seq = list()
         self.pose_seq = list() # list of poses, combo of Point and Quaternion
-        self.goal_cnt = 1 if at_first_node else 0
         for yawangle in yaweulerangles_seq:
             quat_seq.append(Quaternion(*(quaternion_from_euler(0, 0, yawangle))))
         n = 0
@@ -341,20 +346,31 @@ class LRPP():
             n += 1
 
     def modify_assigned_path(self):
+        # do any needed online fixes to the path to adapt to not knowing where
+        # observations will be made
+        # set goal count in here as well
+
         # if robot is observing an edge, append edge to end of path
-        if self.node.opair != None:
+        if self.node != None and self.node.opair != None:
             edge_to_observe = self.node.opair.E
 
             (u,v) = edge_to_observe
             if self.path[-1] == u: self.path.append(v)
             elif self.path[-1] == v: self.path.append(u)
 
-        # if robot is in the same submap as first edge, go straight to second node
-        curr_poly = self.curr_graph.get_polygon(self.path[0], self.path[1])
-        if self.curr_graph.in_polygon(self.pos, curr_poly):
-            self.path.pop(0)
+        # if robot is in the same submap as first edge, go straight to second vertex in
+        # path
+        if len(self.path) > 1:
+            curr_poly = self.curr_graph.get_polygon(self.path[0], self.path[1])
+            if self.curr_graph.in_polygon(self.pos, curr_poly):
+                self.path[0] = self.vprev
+                self.goal_cnt = 1
+            else:
+                self.goal_cnt = 0
+        else:
+            self.goal_cnt = 0
 
-        # add modification to path if robot is closer to another point on the path
+        # add modification to beginning of path if robot is closer to another point on the path
 
 
     def conv_to_PoseArray(self, poseArray):
@@ -403,13 +419,20 @@ class LRPP():
         # constantly checking returned rospath. If it exits the reg mark path as blocked
         # extracting needed data
 
-        if not (self.goal_cnt == 0 or self.path_blocked):
-            # if goal_cnt == 0, this means we are returning to the prev vertex and we
-            # don't need to check if path is in polygon. Maybe have smarter behaviour that
-            # retraces steps? It might still not be what I want in light of new info
-            # though
-            vnext = self.path[self.goal_cnt]
-            vcurr = self.path[self.goal_cnt - 1]
+        vnext = self.vnext
+        vcurr = self.vprev
+
+        plan_dest = (data.poses[-1].pose.position.x, data.poses[-1].pose.position.y)
+
+        if not (vnext == vcurr or self.path_blocked or 
+                util.euclidean_distance(plan_dest, self.curr_graph.pos(vnext)) > 0.25):
+            # Conditions explained:
+            # 1. if vnext == vcurr, robot is going back to where it came from, and I assume
+            # it can take the way it came to get back
+            # 2. if path_blocked = true, this means it's in the middle of replanning so
+            # vnext is being changed
+            # 3. if the final destination of given plan is not vnext, don't check
+
             rospath = to_2d_path(data)
 
             rospy.loginfo("Checking edge ({},{})".format(vcurr, vnext))
@@ -419,7 +442,8 @@ class LRPP():
                                                                PADDING, False)
             rospy.loginfo("result of check_edge_state: {}".format(curr_edge_state))
 
-            if curr_edge_state == self.base_map.G.BLOCKED:
+            if (curr_edge_state == self.base_map.G.BLOCKED and
+                not self.edge_under_observation(vnext, vcurr)):
                 # recalculate path on curr_graph
                 self.path_blocked = True
 
@@ -431,8 +455,9 @@ class LRPP():
         self.posearray_publisher.publish(self.conv_to_PoseArray(self.pose_seq))
 
     def replan(self):
-        rospy.loginfo("Replanning on graph...")
-        start = self.path[max(0,self.goal_cnt - 1)]
+        rospy.loginfo("In openloop, replanning on graph...")
+        self.node = None
+        start = self.vprev
         dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, start, 'g')
 
         if dist['g'] == float('inf'):
@@ -443,8 +468,7 @@ class LRPP():
 
         path = paths['g']
 
-        self.set_new_path(path, at_first_node = False)
-        self.vnext = self.path[self.goal_cnt]
+        self.set_new_path(path)
         self.set_and_send_next_goal()
         self.path_blocked = False
 
@@ -462,8 +486,8 @@ class LRPP():
         if data.state == self.base_map.G.BLOCKED:
             self.curr_graph.set_edge_weight(u,v,float('inf'))
 
-            # if blocked edge is in path, replan, exits policy and goes into openloop
-            if not self.path_blocked:
+            # if robot is not already replanning and the blocked edge is not under observation, 
+            if not (self.path_blocked or self.edge_under_observation(u,v)):
                 for i, v_i in enumerate(self.path):
                     if i == 0: continue
                     if (self.path[i-1] == u and v_i == v) or (self.path[i-1] == v and v_i == u):
@@ -473,6 +497,14 @@ class LRPP():
                         rospy.loginfo("Path is blocked!")
                         self.replan()
                         break
+
+    def edge_under_observation(self, u, v):
+        if self.node != None and self.node.opair != None:
+            (ou, ov) = self.node.opair.E 
+            if (ou == u and ov == v) or (ou == v and ov == u):
+                return True
+
+        return False
 
     def clear_costmap_client(self):
         # service client for clear_costmaps
