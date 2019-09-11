@@ -26,6 +26,8 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from policy.srv import CheckEdge
 from policy.msg import EdgeUpdate, PrevVertex
 
+from std_srvs.srv import *
+
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 
 class LRPP():
@@ -99,11 +101,13 @@ class LRPP():
 
         self.amcl_publisher.publish(init_pose)
 
-        # 3. reset costmap using service /move_base/clear_costmaps
-        # 4. Set up any obstacles
+        # 3. Set up any obstacles
 
         # wait for input before sending goals to move_base
         raw_input('Press any key to begin execution of task {}'.format(self.tcount))
+
+        # reset costmap using service /move_base/clear_costmaps
+        self.clear_costmap_client()
 
         # create blank tgraph to fill in (make sure nothing is carried over!)
         self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
@@ -447,6 +451,14 @@ class LRPP():
                         self.replan()
                         break
 
+    def clear_costmap_client(self):
+        # service client for clear_costmaps
+        rospy.wait_for_service('move_base/clear_costmaps')
+        try:
+            clear_costmap = rospy.ServiceProxy('move_base/clear_costmaps', Empty)
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: {}".format(e))
+
 def to_2d_path(rospath):
     # rospath - ros path message, seq of stamped poses
     path = []
@@ -478,7 +490,7 @@ if __name__ == '__main__':
     poly_dict = tgraph.polygon_dict_from_csv(pkgdir + '/tests/tristan_maze_polygons.csv')
 
     # set number of tasks
-    ntasks = 1
+    ntasks = 2
 
     # setup logging
     logging.basicConfig(filename = pkgdir + '/lrpp2_debug.log', filemode='w', level=logging.INFO)
