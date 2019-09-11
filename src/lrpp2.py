@@ -27,6 +27,7 @@ from policy.srv import CheckEdge
 from policy.msg import EdgeUpdate, PrevVertex
 
 from std_srvs.srv import *
+from gazebo_msgs.srv import *
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 
@@ -90,7 +91,13 @@ class LRPP():
         model_state = ModelState("jackal", 
                 Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
                 Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
-        self.gaz_publisher.publish(model_state) 
+        # self.gaz_publisher.publish(model_state) 
+        self.set_robot_pose(model_state)
+
+        (gz_x, gz_y) = self.get_robot_pose("jackal")
+        while not (util.isclose(gz_x, 2, abs_tol=0.1) and util.isclose(gz_y, -4,
+            abs_tol=0.1)):
+            (gz_x, gz_y) = self.get_robot_pose("jackal")
 
         # 2. Set initial guess for amcl back to start 
         init_pose = PoseWithCovarianceStamped()
@@ -456,6 +463,26 @@ class LRPP():
         rospy.wait_for_service('move_base/clear_costmaps')
         try:
             clear_costmap = rospy.ServiceProxy('move_base/clear_costmaps', Empty)
+            clear_costmap()
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: {}".format(e))
+
+    def set_robot_pose(self, model_state):
+        # service client for setting robot pose in gazebo
+        rospy.wait_for_service('gazebo/set_model_state')
+        try:
+            set_model_state = rospy.ServiceProxy('gazebo/set_model_state', SetModelState)
+            set_model_state(model_state)
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: {}".format(e))
+
+    def get_robot_pose(self, model):
+        # service client for getting robot pose in gazebo
+        rospy.wait_for_service('gazebo/get_model_state')
+        try:
+            get_model_state = rospy.ServiceProxy('gazebo/get_model_state', GetModelState)
+            state = get_model_state(model, "world")
+            return (state.pose.position.x, state.pose.position.y)
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
 
