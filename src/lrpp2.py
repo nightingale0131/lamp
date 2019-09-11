@@ -75,6 +75,9 @@ class LRPP():
     def start_task(self):
         rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
 
+        # create blank tgraph to fill in (make sure nothing is carried over!)
+        self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
+
         # calculate policy
         self.p = update_p_est(self.M, self.tcount) 
         policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
@@ -115,9 +118,6 @@ class LRPP():
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
-
-        # create blank tgraph to fill in (make sure nothing is carried over!)
-        self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
 
         # double check connection with move base
         self.check_connection()
@@ -222,8 +222,9 @@ class LRPP():
         elif self.move_to_next_node():
             # if node under observation is no longer unknown, move to next node
             # selecting next node in tree and setting path
-            self.node = self.node.next_node(feature_state)
-            rospy.loginfo("Next path: {}".format(self.node.path))
+            (u,v) = self.node.opair.E 
+            state = self.curr_graph.edge_state(u,v)
+            self.node = self.node.next_node(state)
             self.set_new_path(self.node.path) # update pose seq
             self.set_and_send_next_goal()
 
@@ -238,8 +239,10 @@ class LRPP():
             (u,v) = self.node.opair.E 
             state = self.curr_graph.edge_state(u,v)
             if  state != self.base_map.G.UNKNOWN:
-                if state == self.base_map.G.UNBLOCKED: rospy.loginfo("Edge ({},{}) is UNBLOCKED!")
-                else: rospy.loginfo("Edge ({},{}) is BLOCKED!")
+                if state == self.base_map.G.UNBLOCKED: 
+                    rospy.loginfo("Edge ({},{}) is UNBLOCKED!".format(u,v))
+                else: 
+                    rospy.loginfo("Edge ({},{}) is BLOCKED!".format(u,v))
                 return True
             else:
                 return False
@@ -311,13 +314,14 @@ class LRPP():
 
     def set_new_path(self, path, at_first_node = True):
         self.path = path
+        self.modify_assigned_path()
 
         points = list() 
         for i in path:
             (x,y) = self.base_map.G.pos(i)
             new_point = (x,y,0.0)
             points.append(new_point)
-            print(new_point)
+            # print(new_point)
 
         yaweulerangles_seq = self.calc_headings(points)
         # if not at_first_node:
@@ -335,6 +339,23 @@ class LRPP():
         for point in points:
             self.pose_seq.append(Pose(Point(*point), quat_seq[n]))
             n += 1
+
+    def modify_assigned_path(self):
+        # if robot is observing an edge, append edge to end of path
+        if self.node.opair != None:
+            edge_to_observe = self.node.opair.E
+
+            (u,v) = edge_to_observe
+            if self.path[-1] == u: self.path.append(v)
+            elif self.path[-1] == v: self.path.append(u)
+
+        # if robot is in the same submap as first edge, go straight to second node
+        curr_poly = self.curr_graph.get_polygon(self.path[0], self.path[1])
+        if self.curr_graph.in_polygon(self.pos, curr_poly):
+            self.path.pop(0)
+
+        # add modification to path if robot is closer to another point on the path
+
 
     def conv_to_PoseArray(self, poseArray):
         poses = PoseArray()
@@ -422,11 +443,6 @@ class LRPP():
 
         path = paths['g']
 
-        # if robot is in the same submap as first edge, go straight to second node
-        curr_poly = self.curr_graph.get_polygon(path[0], path[1])
-        if self.curr_graph.in_polygon(self.pos, curr_poly):
-            path.pop(0)
-        
         self.set_new_path(path, at_first_node = False)
         self.vnext = self.path[self.goal_cnt]
         self.set_and_send_next_goal()
