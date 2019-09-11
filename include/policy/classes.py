@@ -176,7 +176,7 @@ class Map(object):
             if state == self.G.UNKNOWN and M.feature_state(e) != self.G.UNKNOWN:
                 # if feature state is unknown in self but known in M, this is new info wrt
                 # self
-                new_info[e] = M.feature_state(e)
+                new_info[e] = M.G.edge_info(e[0],e[1])
             elif state != M.feature_state(e) and M.feature_state(e) != self.G.UNKNOWN:
                 # if feature is known in both maps and they are different
                 return False, {}
