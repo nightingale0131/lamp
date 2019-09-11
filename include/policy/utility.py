@@ -117,6 +117,16 @@ def euclidean_distance(a, b):
     return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
     #return abs(x1 - x2) + abs(y1 - y2)
 
+def is_same_edge(a,b):
+    # a,b - (u,v) 
+    # when comparing edges of undirected graphs, check if they are actually the same edge
+    (a1, a2) = a
+    (b1, b2) = b
+    if a1 == b1 and a2 == b2: return True
+    if a1 == b2 and a2 == b1: return True
+
+    return False
+
 def a_star_search(graph, start, goal, check_edges=False):
     """A star algorithm courtesy of http://www.redblobgames.com/pathfinding/
 
