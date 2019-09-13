@@ -1,6 +1,6 @@
-image: simple1.pgm
+image: 00.pgm
 resolution: 0.050000
-origin: [-9.352435, -4.345375, 0.000000]
+origin: [-2.807957, -2.459135, 0.000000]
 negate: 0
 occupied_thresh: 0.65
 free_thresh: 0.196
