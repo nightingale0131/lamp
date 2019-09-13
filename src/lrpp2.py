@@ -31,6 +31,7 @@ from gazebo_msgs.srv import *
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 PKGDIR = rospkg.RosPack().get_path('policy')
+MAP = 'tristan_maze'
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -603,8 +604,8 @@ def update_p_est(M,t):
 
 if __name__ == '__main__':
     # load nxgraph and polygon information
-    graph = nx.read_yaml(PKGDIR + '/maps/tristan_maze/tristan_maze_tgraph.yaml')
-    poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/maps/tristan_maze/tristan_maze_polygons.csv')
+    graph = nx.read_yaml(PKGDIR + '/maps/' + MAP + '/tristan_maze_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/maps/' + MAP + '/tristan_maze_polygons.csv')
 
     # setup logging
     logging.basicConfig(level=logging.INFO)
