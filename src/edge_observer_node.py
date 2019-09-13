@@ -31,7 +31,6 @@ class EdgeObserver():
         self.vprev = 's'
         self.robot_pose = None
         self.robot_range = self.get_robot_range()
-        self.travelled_dist = 0 # keep track of how far robot has travelled
 
         self.map_sub = rospy.Subscriber("move_base/global_costmap/costmap", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
         self.pose_sub = rospy.Subscriber("amcl_pose", PoseWithCovarianceStamped,
@@ -53,18 +52,7 @@ class EdgeObserver():
         x = data.pose.pose.position.x
         y = data.pose.pose.position.y
 
-        self.travel_dist(x,y)
         self.robot_pose = (x,y)
-
-    def travel_dist(self, x, y, reset=False):
-        if reset == True:
-            self.travelled_dist = 0
-
-        if self.robot_pose == None: return 0
-
-        dist = util.euclidean_distance((x,y), self.robot_pose)
-
-        self.travelled_dist += dist
 
     def v_callback(self, data):
         # vertex robot is leaving
@@ -88,7 +76,6 @@ class EdgeObserver():
                 continue
 
             rospy.loginfo("-----")
-            rospy.loginfo("Travelled so far: {:.3f} m".format(self.travelled_dist))
             rospy.loginfo("Calculating visibility polygon...")
             self.set_visibility_polygon()
 
@@ -104,7 +91,7 @@ class EdgeObserver():
                     self.base_graph.set_edge_state(u,v,edge_state)
 
                     # prepare message
-                    msg = EdgeUpdate(str(u), str(v), edge_state, self.travelled_dist)
+                    msg = EdgeUpdate(str(u), str(v), edge_state)
                     self.edge_state_pub.publish(msg)
                     rate.sleep() # not sure if this is the right place to put this
 

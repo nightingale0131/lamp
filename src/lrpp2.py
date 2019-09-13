@@ -30,6 +30,7 @@ from std_srvs.srv import *
 from gazebo_msgs.srv import *
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
+PKGDIR = rospkg.RosPack().get_path('policy')
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -43,6 +44,7 @@ class LRPP():
         base_tgraph = tgraph.TGraph(self.base_graph, self.poly_dict)
         (x,y) = base_tgraph.pos('s')
         self.pos = (x,y)
+        self.travelled_dist = 0
 
         # setup initial start pose for publishing
         self.start_pose = Pose(Point(x,y,0.0),
@@ -59,14 +61,13 @@ class LRPP():
 
         self.path_blocked = False # flag for path being blocked, calls reactive algo
         self.at_final_goal = False # flag for reaching final destination
+        self.entered_openloop = False
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
         self.v_publisher = rospy.Publisher("policy/prev_vertex", PrevVertex, queue_size=10)
         self.amcl_publisher = rospy.Publisher("initialpose", PoseWithCovarianceStamped,
-                queue_size=10, latch=True)
-        self.gaz_publisher = rospy.Publisher("gazebo/set_model_state", ModelState,
                 queue_size=10, latch=True)
 
         self.start_task()
@@ -77,6 +78,8 @@ class LRPP():
 
         # create blank tgraph to fill in (make sure nothing is carried over!)
         self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
+        self.path_blocked = False
+        self.entered_openloop = False
 
         # calculate policy
         self.p = update_p_est(self.M, self.tcount) 
@@ -92,11 +95,13 @@ class LRPP():
 
         # setup task environment
         rospy.loginfo("Setting up environment...")
-        # 1. Move jackal back to beginning
+        # Cancel all goals to move_base
+        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+
+        # Move jackal back to beginning
         model_state = ModelState("jackal", 
                 Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
                 Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
-        # self.gaz_publisher.publish(model_state) 
         self.set_robot_pose(model_state)
 
         (gz_x, gz_y) = self.get_robot_pose("jackal")
@@ -105,7 +110,7 @@ class LRPP():
             rospy.loginfo("Not at starting position yet!")
             (gz_x, gz_y) = self.get_robot_pose("jackal")
 
-        # 2. Set initial guess for amcl back to start 
+        # Set initial guess for amcl back to start 
         init_pose = PoseWithCovarianceStamped()
         init_pose.pose.pose = self.start_pose
         init_pose.pose.covariance = np.zeros(36)
@@ -114,13 +119,15 @@ class LRPP():
 
         self.amcl_publisher.publish(init_pose)
 
-        # 3. Set up any obstacles
+        # Set up any obstacles
 
         # wait for input before sending goals to move_base
         raw_input('Press any key to begin execution of task {}'.format(self.tcount))
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
+        self.reset_travel_dist()
+        rospy.sleep(3) # give some time to make sure costmap is cleared before starting
 
         # double check connection with move base
         self.check_connection()
@@ -144,6 +151,35 @@ class LRPP():
         self.edge_subscriber.unregister()
         # run map filter
         self.save_map_and_filter()
+
+        # save any data into a file
+        f = open(PKGDIR + "/tests/results/tristan maze/lrpp_results.dat", "a")
+        f.write("\nFinished executing task {}".format(self.tcount))
+        f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
+        f.write("\nEntered openloop: {}".format(self.entered_openloop))
+
+        # print states
+        f.write("\n\n Map states")
+        for edge in self.base_graph.edges():
+            line = "\n{:<10}".format(edge) 
+            u,v = edge
+            for m in self.M:
+                line += "{:3}".format(m.G.edge_state(u,v))
+
+            f.write(line)
+
+        # print weights
+        f.write("\n\n Map weights")
+        for edge in self.base_graph.edges():
+            line = "\n{:<10}".format(edge) 
+            u,v = edge
+            for m in self.M:
+                line += "{:8.3f}".format(m.G.weight(u,v))
+
+            f.write(line)
+        f.write("\n==============================")
+        f.close()
+
         # increment task counter
         self.tcount +=1
         # check if we need to keep going
@@ -209,7 +245,8 @@ class LRPP():
         position = feedback.base_position.pose.position
         (x,y) = (position.x, position.y)
 
-        # set this to be available to all class methods
+        # update distance travelled and current position
+        self.travelled_dist += util.euclidean_distance((x,y), self.pos)
         self.pos = (x,y)
 
         curr_goal = self.pose_seq[self.goal_cnt].position
@@ -456,14 +493,16 @@ class LRPP():
 
     def replan(self):
         rospy.loginfo("In openloop, replanning on graph...")
+        self.entered_openloop = True
         self.node = None
         start = self.vprev
         dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, start, 'g')
 
         if dist['g'] == float('inf'):
             print(self.curr_graph.edges(data='state'))
-            rospy.loginfo("Cannot go to goal! Stopping node.")
-            rospy.signal_shutdown("Cannot go to goal! Stopping node.")
+            rospy.loginfo("Cannot go to goal! Ending task.")
+            self.finish_task()
+            self.start_task()
             return # path_blocked = True from now until shutdown
 
         path = paths['g']
@@ -481,6 +520,8 @@ class LRPP():
         if v.isdigit(): v = int(v)
 
         if data.state != self.base_map.G.UNKNOWN:
+            # TODO: have some 'average' of states before setting it, there appears to be the
+            # occasional false blocks/unblocks
             self.curr_graph.set_edge_state(u,v,data.state)
 
         if data.state == self.base_map.G.BLOCKED:
@@ -505,6 +546,9 @@ class LRPP():
                 return True
 
         return False
+
+    def reset_travel_dist(self):
+        self.travelled_dist = 0
 
     def clear_costmap_client(self):
         # service client for clear_costmaps
@@ -559,16 +603,14 @@ def update_p_est(M,t):
 
 if __name__ == '__main__':
     # load nxgraph and polygon information
-    rospack = rospkg.RosPack()
-    pkgdir = rospack.get_path('policy')
-    graph = nx.read_yaml(pkgdir + '/tests/tristan_maze_tgraph.yaml')
-    poly_dict = tgraph.polygon_dict_from_csv(pkgdir + '/tests/tristan_maze_polygons.csv')
+    graph = nx.read_yaml(PKGDIR + '/tests/tristan_maze_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/tests/tristan_maze_polygons.csv')
 
     # set number of tasks
     ntasks = 2
 
     # setup logging
-    logging.basicConfig(filename = pkgdir + '/lrpp2_debug.log', filemode='w', level=logging.INFO)
+    logging.basicConfig(filename = PKGDIR + '/lrpp2_debug.log', filemode='w', level=logging.INFO)
 
     # run LRPP
     try:
