@@ -57,10 +57,10 @@ add_message_files(
 )
 
 ## Generate services in the 'srv' folder
-add_service_files(DIRECTORY srv
-  FILES
-  CheckEdge.srv
-)
+#add_service_files(DIRECTORY srv
+#  FILES
+#  CheckEdge.srv
+#)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
