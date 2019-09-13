@@ -603,14 +603,11 @@ def update_p_est(M,t):
 
 if __name__ == '__main__':
     # load nxgraph and polygon information
-    graph = nx.read_yaml(PKGDIR + '/tests/tristan_maze_tgraph.yaml')
-    poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/tests/tristan_maze_polygons.csv')
+    graph = nx.read_yaml(PKGDIR + '/maps/tristan_maze/tristan_maze_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/maps/tristan_maze/tristan_maze_polygons.csv')
 
     # set number of tasks
     ntasks = 2
-
-    # setup logging
-    logging.basicConfig(filename = PKGDIR + '/lrpp2_debug.log', filemode='w', level=logging.INFO)
 
     # run LRPP
     try:
