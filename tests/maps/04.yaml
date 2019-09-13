@@ -1,0 +1,7 @@
+image: /home/florence/catkin_ws/src/policy/maps/test.pgm
+resolution: 0.050000
+origin: [-6.126531, -10.422039, 0.000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+
