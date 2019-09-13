@@ -1,8 +1,0 @@
-# return whether a path exists from start to goal in the specified polygon of the costmap
-
-geometry_msgs/Point start
-geometry_msgs/Point goal
-geometry_msgs/Polygon polygon
----
-bool result
-
