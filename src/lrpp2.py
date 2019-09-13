@@ -606,6 +606,9 @@ if __name__ == '__main__':
     graph = nx.read_yaml(PKGDIR + '/maps/tristan_maze/tristan_maze_tgraph.yaml')
     poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/maps/tristan_maze/tristan_maze_polygons.csv')
 
+    # setup logging
+    logging.basicConfig(level=logging.INFO)
+
     # set number of tasks
     ntasks = 2
 
