@@ -1,0 +1,27 @@
+<launch>
+
+	<arg name="world_name" default="tristan_maze" />
+
+	<!-- Run gazebo -->
+	<include file="$(find policy)/launch/gazebo.launch" >
+    <arg name="world_name" value="$(find policy)/worlds/$(arg world_name).world" />
+	</include>
+
+  <!-- Spawn Jackal -->
+	<include file="$(find policy)/worlds/$(arg world_name).launch" />
+
+	<!-- Run RViz -->
+  <param name="use_gui" value="true"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find jackal_viz)/rviz/localization.rviz" />
+
+  <!-- Run the map server -->
+	<arg name="map_file" default="$(find policy)/maps/$(arg world_name)/base.yaml"/>
+	<node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+  <!--- Run AMCL -->
+	<include file="$(find jackal_navigation)/launch/include/amcl.launch" />
+
+  <!--- Run Move Base -->
+  <include file="$(find jackal_navigation)/launch/include/move_base.launch" />
+
+</launch>

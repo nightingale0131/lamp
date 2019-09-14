@@ -334,8 +334,8 @@ class SubMap():
 if __name__ == '__main__':
     rospack = rospkg.RosPack()
     pkgdir = rospack.get_path('policy')
-    graph = nx.read_yaml(pkgdir + '/tests/tristan_maze_tgraph.yaml')
-    poly_dict = polygon_dict_from_csv(pkgdir + '/tests/tristan_maze_polygons.csv')
+    graph = nx.read_yaml(pkgdir + '/maps/tristan_maze/tristan_maze_tgraph.yaml')
+    poly_dict = polygon_dict_from_csv(pkgdir + '/maps/tristan_maze/tristan_maze_polygons.csv')
 
     base_graph = TGraph(graph, poly_dict)
 
