@@ -1,0 +1,180 @@
+#!/usr/bin/env python
+
+#from policy.utility import euclidean_distance
+import random
+import os
+import math
+
+def euclidean_distance(a, b):
+    """ redblobgames@gmail.com """
+    (x1, y1) = a
+    (x2, y2) = b
+    return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
+
+'''barrier_prob = 1.0
+i_prob = 1.0
+ii_prob = 1.0
+iii_prob = 1.0
+vi_prob = 1.0
+vii_prob = 1.0
+viii_prob = 1.0'''
+
+barrier_prob = 0.2
+i_prob = 0.2
+ii_prob = 0.2
+iii_prob = 0.2
+vi_prob = 0.2
+vii_prob = 0.2
+viii_prob = 0.2
+
+random.seed()
+avoid_set = [(18.25,17.521),(16.681,3.661),(16.681,6.725),(14.182,8.204),(14.294,17.532),(10.169,8.204),(10.168,17.558),(5.787,3.507),(2.841,6.814)]
+cmd = ''
+del_cmd = ''
+
+v_spawn = False #only spawn dumpster_v if dumpster_vi or dumpster_vii present
+
+if random.random() < barrier_prob: #barriers B G I
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_b -x 16.681 -y 3.661 -Y 0.0\n\
+		rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_g -x 10.168 -y 17.558 -Y 1.570796\n\
+		rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_i -x 2.841 -y 6.814 -Y 0.0\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_b\n\
+		rosservice call gazebo/delete_model barrier_g\n\
+		rosservice call gazebo/delete_model barrier_i\n'
+
+if random.random() < barrier_prob: #barriers A F
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_a -x 18.25 -y 17.521 -Y 1.570796\n\
+		rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_f -x 10.169 -y 8.204 -Y 1.570796\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_a\n\
+		rosservice call gazebo/delete_model barrier_f\n'
+
+if random.random() < barrier_prob: #barriers C D 
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_c -x 16.681 -y 6.725 -Y 0.0\n\
+		rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_d -x 14.182 -y 8.204 -Y 1.570796\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_c\n\
+		rosservice call gazebo/delete_model barrier_d\n'
+
+if random.random() < barrier_prob: #barriers E H 
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_e -x 14.294 -y 17.532 -Y 1.570796\n\
+		rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_h -x 5.787 -y 3.507 -Y 0.0\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_e\n\
+		rosservice call gazebo/delete_model barrier_h\n'
+
+if random.random() < i_prob: 
+	x_pos = 18.092
+	y_pos = random.random()*6.0 + 9.0
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_i -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_i\n'
+	avoid_set.append((x_pos,y_pos))
+
+if random.random() < ii_prob: 
+	x_pos1 = 15.526
+	x_pos2 = 14.056
+	x_pos3 = 12.835
+	y_pos = random.random()*5.0 + 10.0
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_ii_1 -x ' + str(x_pos1) + ' -y ' + str(y_pos) + ' -Y 0.0\n\
+		rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_ii_2 -x ' + str(x_pos2) + ' -y ' + str(y_pos) + ' -Y 1.570796\n\
+		rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_ii_3 -x ' + str(x_pos3) + ' -y ' + str(y_pos) + ' -Y 1.570796\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_ii_1\n\
+		rosservice call gazebo/delete_model dumpster_ii_2\n\
+		rosservice call gazebo/delete_model dumpster_ii_3\n'
+	avoid_set.append((x_pos1, y_pos))
+	avoid_set.append((x_pos2, y_pos))
+	avoid_set.append((x_pos3, y_pos))
+
+if random.random() < iii_prob: 
+	x_pos = random.random()*4.0 + 6.6
+	y_pos1 = 11.42
+	y_pos2 = 9.5
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_iii_1 -x ' + str(x_pos) + ' -y ' + str(y_pos1) + ' -Y 1.570796\n\
+		rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_iii_2 -x ' + str(x_pos) + ' -y ' + str(y_pos2) + ' -Y 1.570796\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_iii_1\n\
+		rosservice call gazebo/delete_model dumpster_iii_2\n'
+	avoid_set.append((x_pos,y_pos1))
+	avoid_set.append((x_pos,y_pos2))
+
+if random.random() < vi_prob: 
+	x_pos1 = 13.75
+	y_pos1 = 5.47
+	x_pos2 = 12.45
+	y_pos2 = 6.97
+	v_spawn = True
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_vi_1 -x ' + str(x_pos1) + ' -y ' + str(y_pos1) + ' -Y -0.344\n\
+		rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_vi_2 -x ' + str(x_pos2) + ' -y ' + str(y_pos2) + ' -Y -1.265\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_vi_1\n\
+		rosservice call gazebo/delete_model dumpster_vi_2\n'
+	avoid_set.append((x_pos1,y_pos1))
+	avoid_set.append((x_pos2,y_pos2))
+if random.random() < vii_prob: 
+	x_pos = 14.855
+	y_pos = 3.57
+	v_spawn = True
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_vii -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y -2.1\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_vii\n'
+	avoid_set.append((x_pos,y_pos))
+
+if v_spawn:
+	x_pos = 15.625
+	y_pos = 5.143
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_v -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_v\n'
+	avoid_set.append((x_pos,y_pos))
+
+if random.random() < viii_prob: 
+	x_pos = 4.3266
+	y_pos = 5.1462
+	cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_viii -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y -2.43\n'
+	del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_viii\n'
+	avoid_set.append((x_pos,y_pos))
+
+num_debris = random.randint(0,11)
+num_spawned = 0
+while num_spawned < num_debris:
+	loc = random.random()
+	if loc < 0.1: #a
+		x_pos = 18.8
+		ymin = 6
+		ymax = 16.75
+		y_pos = (ymax-ymin)*random.random()+ymin
+	elif loc < 0.2: #b
+		x = 17.4
+		ymin = 6.0
+		ymax = 16.75
+		y_pos = (ymax-ymin)*random.random()+ymin		
+	elif loc < 0.4: #c
+		xmin = 12.585
+		xmax = 15.95
+		x_pos = (xmax-xmin)*random.random()+xmin
+		ymin = 8.91
+		ymax = 16.75
+		y_pos = (ymax-ymin)*random.random()+ymin
+	elif loc < 0.6: #d
+		xmin = 6.55
+		xmax = 15.95
+		x_pos = (xmax-xmin)*random.random()+xmin
+		ymin = 3.0
+		ymax = 7.45
+		y_pos = (ymax-ymin)*random.random()+ymin
+	elif loc < 0.9: #e
+		xmin = 3.58
+		xmax = 5.0
+		x_pos = (xmax-xmin)*random.random()+xmin
+		ymin = 3.0
+		ymax = 7.48
+		y_pos = (ymax-ymin)*random.random()+ymin
+	else: #f
+		xmin = 3.58
+		xmax = 11.11
+		x_pos = (xmax-xmin)*random.random()+xmin
+		ymin = 8.93
+		ymax = 16.8
+		y_pos = (ymax-ymin)*random.random()+ymin
+	if all(euclidean_distance(coord,(x_pos,y_pos))>2.0 for coord in avoid_set):
+		cmd = cmd + 'rosrun gazebo_ros spawn_model -database construction_barrel -gazebo -model debris' + str(num_spawned) + ' -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n'
+		del_cmd = del_cmd + 'rosservice call gazebo/delete_model debris' + str(num_spawned) + '\n'
+		avoid_set.append((x_pos, y_pos))
+		num_spawned = num_spawned + 1
+
+os.system(cmd)
+raw_input('press Enter to delete models')
+os.system(del_cmd)
