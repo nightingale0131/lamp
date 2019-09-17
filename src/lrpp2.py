@@ -154,7 +154,7 @@ class LRPP():
         self.save_map_and_filter()
 
         # save any data into a file
-        f = open(PKGDIR + "/tests/results/tristan maze/lrpp_results.dat", "a")
+        f = open(PKGDIR + "/results/tristan maze/lrpp_results.dat", "a")
         f.write("\nFinished executing task {}".format(self.tcount))
         f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
         f.write("\nEntered openloop: {}".format(self.entered_openloop))
