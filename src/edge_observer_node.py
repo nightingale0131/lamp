@@ -14,10 +14,13 @@ import networkx as nx
 import policy.utility as util
 from policy.tgraph import TGraph, polygon_dict_from_csv
 from policy import visibility as vis
+from copy import copy
 
 from policy.msg import EdgeUpdate, PrevVertex
 from geometry_msgs.msg import Point, Polygon, PoseWithCovarianceStamped
 from nav_msgs.msg import OccupancyGrid
+
+from std_srvs.srv import *
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 
@@ -27,6 +30,7 @@ class EdgeObserver():
         rospy.init_node('edge_observer')
 
         self.base_graph = base_graph
+        self.curr_graph = copy(self.base_graph) 
         self.costmap = None
         self.vprev = 's'
         self.robot_pose = None
@@ -39,6 +43,8 @@ class EdgeObserver():
 
         self.edge_state_pub = rospy.Publisher("policy/edge_update", EdgeUpdate,
                                               queue_size=10)
+
+        s = rospy.Service('reset_edge_observer', Empty, self.reset_graph_service)
 
         self.edge_updater()
         # test visibility here
@@ -88,7 +94,7 @@ class EdgeObserver():
 
                 if (dist_to_u <= self.robot_range) and (dist_to_v <= self.robot_range):
                     edge_state = self.check_edge(u,v)
-                    self.base_graph.set_edge_state(u,v,edge_state)
+                    self.curr_graph.set_edge_state(u,v,edge_state)
 
                     # prepare message
                     msg = EdgeUpdate(str(u), str(v), edge_state)
@@ -143,7 +149,7 @@ class EdgeObserver():
         elif self.vprev == v and u_is_visible:
             return TGraph.UNBLOCKED
 
-        return self.base_graph.edge_state(u,v)
+        return self.curr_graph.edge_state(u,v)
 
     def set_visibility_polygon(self):
         # 1) get submap of robot's visible range 
@@ -200,6 +206,12 @@ class EdgeObserver():
 
     def point_to_tuple(self, point):
         return "({:.2f},{:.2f})".format(point.x, point.y)
+
+    def reset_graph_service(self, req):
+        # req is empty, just triggers this service
+        self.curr_graph = copy(self.base_graph) 
+        rospy.loginfo('Reset graph')
+        return {}
 
 class SubMap():
     # ASSUMES POLYGON IS BOX!!! Cannot deal with other shaped polygons

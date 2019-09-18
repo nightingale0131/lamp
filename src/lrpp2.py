@@ -23,8 +23,8 @@ from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseWithCovari
 from geometry_msgs.msg import PoseWithCovariance, PoseWithCovarianceStamped, Twist, Vector3
 from gazebo_msgs.msg import ModelState
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
-from policy.srv import CheckEdge
 from policy.msg import EdgeUpdate, PrevVertex
+from std_msgs.msg import Empty as rosEmpty
 
 from std_srvs.srv import *
 from gazebo_msgs.srv import *
@@ -82,6 +82,8 @@ class LRPP():
         self.path_blocked = False
         self.entered_openloop = False
 
+        print(self.curr_graph)
+
         # calculate policy
         self.p = update_p_est(self.M, self.tcount) 
         policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
@@ -123,10 +125,11 @@ class LRPP():
         # Set up any obstacles
 
         # wait for input before sending goals to move_base
-        raw_input('Press any key to begin execution of task {}'.format(self.tcount))
+        raw_input('Remove/add obstacles as needed, then press any key to begin execution of task {}'.format(self.tcount))
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
+        self.reset_edge_observer()
         self.reset_travel_dist()
         rospy.sleep(3) # give some time to make sure costmap is cleared before starting
 
@@ -576,6 +579,14 @@ class LRPP():
             get_model_state = rospy.ServiceProxy('gazebo/get_model_state', GetModelState)
             state = get_model_state(model, "world")
             return (state.pose.position.x, state.pose.position.y)
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: {}".format(e))
+
+    def reset_edge_observer(self):
+        rospy.wait_for_service('reset_edge_observer')
+        try:
+            reset = rospy.ServiceProxy('reset_edge_observer', Empty)
+            reset()
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
 
