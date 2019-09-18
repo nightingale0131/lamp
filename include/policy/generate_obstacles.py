@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-#from policy.utility import euclidean_distance
+from policy.utility import euclidean_distance
 import random
 import os
 import math
 
-def euclidean_distance(a, b):
+'''def euclidean_distance(a, b):
     """ redblobgames@gmail.com """
     (x1, y1) = a
     (x2, y2) = b
-    return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
+    return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))'''
 
 '''barrier_prob = 1.0
 i_prob = 1.0
@@ -28,7 +28,7 @@ vii_prob = 0.2
 viii_prob = 0.2
 
 random.seed()
-avoid_set = [(18.25,17.521),(16.681,3.661),(16.681,6.725),(14.182,8.204),(14.294,17.532),(10.169,8.204),(10.168,17.558),(5.787,3.507),(2.841,6.814)]
+avoid_set = [(18.25,17.521),(16.681,3.661),(16.681,6.725),(14.182,8.204),(14.294,17.532),(10.169,8.204),(10.168,17.558),(5.787,3.507),(2.841,6.814)] #list of doorway locations to prevent spawning debris in doorways
 cmd = ''
 del_cmd = ''
 
@@ -155,18 +155,25 @@ while num_spawned < num_debris:
 		ymin = 3.0
 		ymax = 7.45
 		y_pos = (ymax-ymin)*random.random()+ymin
-	elif loc < 0.9: #e
+	elif loc < 0.7: #e
 		xmin = 3.58
 		xmax = 5.0
 		x_pos = (xmax-xmin)*random.random()+xmin
 		ymin = 3.0
 		ymax = 7.48
 		y_pos = (ymax-ymin)*random.random()+ymin
-	else: #f
+	elif loc < 0.85: #f1
 		xmin = 3.58
 		xmax = 11.11
 		x_pos = (xmax-xmin)*random.random()+xmin
 		ymin = 8.93
+		ymax = 11.94
+		y_pos = (ymax-ymin)*random.random()+ymin
+	else: #f2
+		xmin = 3.58
+		xmax = 11.11
+		x_pos = (xmax-xmin)*random.random()+xmin
+		ymin = 13.4
 		ymax = 16.8
 		y_pos = (ymax-ymin)*random.random()+ymin
 	if all(euclidean_distance(coord,(x_pos,y_pos))>2.0 for coord in avoid_set):
