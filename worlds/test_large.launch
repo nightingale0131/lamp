@@ -1,0 +1,7 @@
+<launch>
+
+  <!-- Spawn Jackal in appropriate starting location for tristan_maze -->
+  <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model"
+	      args="-urdf -model jackal -param robot_description -x 1.5 -y 1.5 -z 1.0 -Y 0" />
+
+</launch>
