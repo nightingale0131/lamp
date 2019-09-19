@@ -3422,10 +3422,10 @@
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
     <state world_name='1_wall'>
-      <sim_time>142 70000000</sim_time>
-      <real_time>142 148881832</real_time>
-      <wall_time>1568904769 514283606</wall_time>
-      <iterations>14207</iterations>
+      <sim_time>184 50000000</sim_time>
+      <real_time>42 11921354</real_time>
+      <wall_time>1568926412 422834091</wall_time>
+      <iterations>4198</iterations>
       <model name='Wall_0'>
         <pose frame=''>0 0 0 0 -0 0</pose>
         <scale>1 1 1</scale>
@@ -4152,7 +4152,7 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose frame=''>11.1596 10.8459 35.1348 2.7e-05 1.5698 -1.57577</pose>
+        <pose frame=''>7.66739 9.35702 30.5605 1e-06 1.5538 1.57145</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
