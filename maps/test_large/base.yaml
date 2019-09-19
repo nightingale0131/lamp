@@ -1,4 +1,4 @@
-image: test_large_flipped_labelled.png
+image: base.pgm
 resolution: 0.02
 origin: [0.000000, 0.000000, 0.000000]
 negate: 0
