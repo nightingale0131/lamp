@@ -87,7 +87,7 @@ node:
   1:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAmpmZmZmZMUAAAAAAAIAxQJqZmZmZmTNAAAAAAACAMUA=
+        AQIAAAACAAAAAAAAAAAAMUAAAAAAAIAxQJqZmZmZmTNAAAAAAACAMUA=
   2:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |

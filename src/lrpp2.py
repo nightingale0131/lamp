@@ -31,7 +31,8 @@ from gazebo_msgs.srv import *
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 PKGDIR = rospkg.RosPack().get_path('policy')
-MAP = 'tristan_maze'
+# MAP = 'tristan_maze'
+MAP = 'test_large'
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -49,7 +50,8 @@ class LRPP():
 
         # setup initial start pose for publishing
         self.start_pose = Pose(Point(x,y,0.0),
-                Quaternion(*(quaternion_from_euler(0, 0, 0))))
+                # Quaternion(*(quaternion_from_euler(0, 0, 1.57))))
+                Quaternion(*(quaternion_from_euler(0, 0, 3.14))))
 
         # set all edges to UNBLOCKED for initial map
         for (u,v) in base_tgraph.edges():
@@ -90,11 +92,13 @@ class LRPP():
         rospy.loginfo(policy[0].print_policy())
 
         # setup policy in set_new_path
-        self.pos = (0.0, 0.0)
+        (x,y) = self.curr_graph.pos('s')
+        self.pos = (x,y) 
         self.node = policy[0].next_node()
         self.vprev = self.node.path[0] 
 
         self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
+        rospy.loginfo("goalcnt: {}".format(self.goal_cnt))
 
         # setup task environment
         rospy.loginfo("Setting up environment...")
@@ -103,15 +107,18 @@ class LRPP():
 
         # Move jackal back to beginning
         model_state = ModelState("jackal", 
-                Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
+                # Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
+                Pose(Point(18.5,18.5,1),Quaternion(*(quaternion_from_euler(0,0,3.14)))),
                 Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
         self.set_robot_pose(model_state)
 
+        """
         (gz_x, gz_y) = self.get_robot_pose("jackal")
         while not (util.isclose(gz_x, 2, abs_tol=0.1) and util.isclose(gz_y, -4,
             abs_tol=0.1)):
             rospy.loginfo("Not at starting position yet!")
             (gz_x, gz_y) = self.get_robot_pose("jackal")
+        """
 
         # Set initial guess for amcl back to start 
         init_pose = PoseWithCovarianceStamped()
@@ -157,7 +164,7 @@ class LRPP():
         self.save_map_and_filter()
 
         # save any data into a file
-        f = open(PKGDIR + "/results/tristan maze/lrpp_results.dat", "a")
+        f = open(PKGDIR + "/results/" + MAP + "/lrpp_results.dat", "a")
         f.write("\nFinished executing task {}".format(self.tcount))
         f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
         f.write("\nEntered openloop: {}".format(self.entered_openloop))
@@ -615,14 +622,14 @@ def update_p_est(M,t):
 
 if __name__ == '__main__':
     # load nxgraph and polygon information
-    graph = nx.read_yaml(PKGDIR + '/maps/' + MAP + '/tristan_maze_tgraph.yaml')
-    poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/maps/' + MAP + '/tristan_maze_polygons.csv')
+    graph = nx.read_yaml(PKGDIR + '/maps/' + MAP + '/' + MAP + '_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/maps/' + MAP + '/' + MAP + '_polygons.csv')
 
     # setup logging
     logging.basicConfig(level=logging.INFO)
 
     # set number of tasks
-    ntasks = 2
+    ntasks = 1
 
     # run LRPP
     try:

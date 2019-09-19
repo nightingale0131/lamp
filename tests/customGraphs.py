@@ -80,7 +80,7 @@ def test_large():
     node_list=[
             ('s', {'defn': Point((18.5, 18.5))}),
             ('g', {'defn': Point((18.3, 3.7))}),
-            (1, {'defn': LineString([(17.6, 17.5),(19.6, 17.5)])}),
+            (1, {'defn': LineString([(17.0, 17.5),(19.6, 17.5)])}),
             (2, {'defn': LineString([(13.3, 17.5),(15.3, 17.5)])}),
             (3, {'defn': LineString([(9.2, 17.5),(11.2, 17.5)])}),
             (4, {'defn': LineString([(0.5, 17.5),(2.8, 17.5)])}),
