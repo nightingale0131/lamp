@@ -60,7 +60,7 @@ class TGraph(object):
 
                 # TODO: check that straight line between portals ('edge') is contained in polygon
 
-        logger.debug(self.graph.edges(data=True))
+        logger.debug(str(self))
 
     def min_dist(self, u, v):
         # calculate shortest distance between two vertices
