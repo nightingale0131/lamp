@@ -18,17 +18,19 @@ def get_bounds_from_yaml(grid, yamlfile):
 
 def test_drawing(G):
     # G - tgraph type
-    filename = '/results/tristan maze/00'
-    gridfile = TESTPATH + '{}.pgm'.format(filename)
-    yamlfile = TESTPATH + '{}.yaml'.format(filename) 
+    # filedir = '../maps/tristan_maze/base'
+    filedir = '../maps/test_large/base'
+    gridfile = filedir + '.pgm'
+    yamlfile = filedir + '.yaml'
 
     img = cv2.imread(gridfile, cv2.IMREAD_GRAYSCALE)
     bounds = get_bounds_from_yaml(img, yamlfile)
 
     fig, ax1 = plt.subplots(1,1)
     ax1.imshow(img, cmap='gray', interpolation='bicubic', extent=bounds)
-    G.draw_vertices(ax1)
     G.draw_polygons(ax1)
+    G.draw_vertices(ax1)
+    plt.grid(which='both')
     plt.show()
 
 def test_get(G):
@@ -56,8 +58,11 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     # init TGraph class
-    graph = nx.read_yaml(TESTPATH + '/tristan_maze_tgraph.yaml')
-    poly_dict = tgraph.polygon_dict_from_csv(TESTPATH + '/tristan_maze_polygons.csv')
+    # graph = nx.read_yaml('../maps/tristan_maze/tristan_maze_tgraph.yaml')
+    # poly_dict = tgraph.polygon_dict_from_csv('../maps/tristan_maze/tristan_maze_polygons.csv')
+
+    graph = nx.read_yaml('../maps/test_large/test_large_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv('../maps/test_large/test_large_polygons.csv')
     tgraph1 = tgraph.TGraph(graph, poly_dict)
 
     test_get(tgraph1)

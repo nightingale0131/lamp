@@ -76,5 +76,36 @@ def tristan_maze_tgraph():
 
     create_graph('tristan_maze_tgraph.yaml', node_list, edge_list)
 
+def test_large():
+    node_list=[
+            ('s', {'defn': Point((18.5, 18.5))}),
+            ('g', {'defn': Point((18.3, 3.7))}),
+            (1, {'defn': LineString([(17.6, 17.5),(19.6, 17.5)])}),
+            (2, {'defn': LineString([(13.3, 17.5),(15.3, 17.5)])}),
+            (3, {'defn': LineString([(9.2, 17.5),(11.2, 17.5)])}),
+            (4, {'defn': LineString([(0.5, 17.5),(2.8, 17.5)])}),
+            (5, {'defn': LineString([(3.0, 12.6),(6.0, 12.6)])}),
+            (6, {'defn': LineString([(16.7, 5.6),(16.7, 7.6)])}),
+            (7, {'defn': LineString([(13.2, 8.2),(15.2, 8.2)])}),
+            (8, {'defn': LineString([(9.2, 8.2),(11.2, 8.2)])}),
+            (9, {'defn': LineString([(5.8, 2.5),(5.8, 4.5)])}),
+            (10, {'defn': LineString([(2.8, 5.8),(2.8, 7.8)])}),
+            (11, {'defn': LineString([(16.8, 2.2),(19.6, 2.2)])}),
+            (12, {'defn': LineString([(16.7, 2.6),(16.7, 4.6)])}),
+            (13, {'defn': LineString([(0.5, 2.2),(2.8, 2.2)])})
+            ]
+
+    edge_list=[('s',1),('s',2),('s',3),('s',4),
+               (1,6),(1,2),(1,3),(1,4),(2,3),(2,4),(3,4),
+               (2,7),(8,5),(3,5),(4,10),(10,13),(4,13),
+               (12,6),(12,7),(12,8),(12,9),
+               (6,7),(6,8),(6,9),(7,8),(7,9),(8,9),
+               (9,10),(11,13),(11,12),
+               ('g',11), ('g',12)
+            ]
+
+    create_graph('test_large_tgraph.yaml', node_list, edge_list)
+
 if __name__ == '__main__':
-    tristan_maze_tgraph()
+    # tristan_maze_tgraph()
+    test_large()
