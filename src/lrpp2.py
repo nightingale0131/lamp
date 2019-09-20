@@ -15,6 +15,7 @@ from policy.classes import Map
 from policy import utility as util
 from policy import rpp, timing, tgraph
 from policy import mapfilters as mf
+from policy.generate_obstacles import spawn_obstacles, delete_obstacles
 
 from nav_msgs.msg import OccupancyGrid, Path
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -130,6 +131,7 @@ class LRPP():
         self.amcl_publisher.publish(init_pose)
 
         # Set up any obstacles
+        spawn_obstacles()
 
         # wait for input before sending goals to move_base
         raw_input('Remove/add obstacles as needed, then press any key to begin execution of task {}'.format(self.tcount))
@@ -198,6 +200,7 @@ class LRPP():
             self.shutdown()
 
         # clear all non-static obstacles
+        delete_obstacles()
 
     def check_connection(self):
         # make sure there is a connection to move_base node
@@ -629,7 +632,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     # set number of tasks
-    ntasks = 1
+    ntasks = 3
 
     # run LRPP
     try:
