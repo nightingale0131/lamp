@@ -131,7 +131,7 @@ class LRPP():
         self.amcl_publisher.publish(init_pose)
 
         # Set up any obstacles
-        del_cmd = spawn_obstacles()
+        self.del_cmd = spawn_obstacles()
 
         # wait for input before sending goals to move_base
         raw_input('Remove/add obstacles as needed, then press any key to begin execution of task {}'.format(self.tcount))
@@ -200,7 +200,7 @@ class LRPP():
             self.shutdown()
 
         # clear all non-static obstacles
-        delete_obstacles(del_cmd)
+        delete_obstacles(self.del_cmd)
 
     def check_connection(self):
         # make sure there is a connection to move_base node
@@ -238,9 +238,7 @@ class LRPP():
         rospy.loginfo("Goal pose " + str(self.goal_cnt) + " is now being processed by the Action server...")
 
         # update which edge robot is traversing
-        if self.goal_cnt == 0:
-            self.vprev = self.vnext
-        else:
+        if self.goal_cnt > 0:
             self.vprev = self.path[self.goal_cnt - 1]
         self.vnext = self.path[self.goal_cnt]
 
