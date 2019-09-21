@@ -85,8 +85,6 @@ class LRPP():
         self.path_blocked = False
         self.entered_openloop = False
 
-        print(self.curr_graph)
-
         # calculate policy
         self.p = update_p_est(self.M, self.tcount) 
         policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
@@ -217,7 +215,8 @@ class LRPP():
     def save_map_and_filter(self):
         rospy.loginfo("Checking map from task {}".format(self.tcount))
         n = len(self.M)
-
+        
+        rospy.loginfo("Saved map: \n" + str(self.curr_graph))
         # copy current tgraph 
         new_map = Map(copy(self.curr_graph))
 
@@ -229,8 +228,6 @@ class LRPP():
 
     def shutdown(self):
         # print maps
-        for m in self.M:
-            print(m.G)
         rospy.loginfo("Shutting down...")
         rospy.signal_shutdown("Finished tasks.")
 
