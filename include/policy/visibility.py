@@ -96,7 +96,7 @@ def visibility_polygon(obsv_x, obsv_y, obstacles):
     # get visibility polygon
     isovist = vis.Visibility_Polygon(observer, env, epsilon)
     if isovist.n() == 0: 
-        logger.warn('Visibility polygon is empty for {}!'.format(observationPoint))
+        logger.warn('Visibility polygon is empty for ({:.2f},{:.2f})!'.format(obsv_x, obsv_y))
 
     isovist.eliminate_redundant_vertices(redundant_eps)
 
