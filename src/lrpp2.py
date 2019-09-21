@@ -131,7 +131,7 @@ class LRPP():
         self.amcl_publisher.publish(init_pose)
 
         # Set up any obstacles
-        spawn_obstacles()
+        self.del_cmd = spawn_obstacles()
 
         # wait for input before sending goals to move_base
         raw_input('Remove/add obstacles as needed, then press any key to begin execution of task {}'.format(self.tcount))
@@ -200,7 +200,7 @@ class LRPP():
             self.shutdown()
 
         # clear all non-static obstacles
-        delete_obstacles()
+        delete_obstacles(self.del_cmd)
 
     def check_connection(self):
         # make sure there is a connection to move_base node
@@ -238,9 +238,7 @@ class LRPP():
         rospy.loginfo("Goal pose " + str(self.goal_cnt) + " is now being processed by the Action server...")
 
         # update which edge robot is traversing
-        if self.goal_cnt == 0:
-            self.vprev = self.vnext
-        else:
+        if self.goal_cnt != 0: 
             self.vprev = self.path[self.goal_cnt - 1]
         self.vnext = self.path[self.goal_cnt]
 
@@ -473,40 +471,43 @@ class LRPP():
         vnext = self.vnext
         vcurr = self.vprev
 
-        plan_dest = (data.poses[-1].pose.position.x, data.poses[-1].pose.position.y)
+        if len(data.poses) > 0:
+            plan_dest = (data.poses[-1].pose.position.x, data.poses[-1].pose.position.y)
 
-        if not (vnext == vcurr or self.path_blocked or 
-                util.euclidean_distance(plan_dest, self.curr_graph.pos(vnext)) > 0.25):
-            # Conditions explained:
-            # 1. if vnext == vcurr, robot is going back to where it came from, and I assume
-            # it can take the way it came to get back
-            # 2. if path_blocked = true, this means it's in the middle of replanning so
-            # vnext is being changed
-            # 3. if the final destination of given plan is not vnext, don't check
+            if not (vnext == vcurr or self.path_blocked or 
+                    util.euclidean_distance(plan_dest, self.curr_graph.pos(vnext)) > 0.25):
+                # Conditions explained:
+                # 1. if vnext == vcurr, robot is going back to where it came from, and I assume
+                # it can take the way it came to get back
+                # 2. if path_blocked = true, this means it's in the middle of replanning so
+                # vnext is being changed
+                # 3. if the final destination of given plan is not vnext, don't check
+                # 4. if path is empty don't check
 
-            rospath = to_2d_path(data)
+                rospath = to_2d_path(data)
 
-            rospy.loginfo("Checking edge ({},{})".format(vcurr, vnext))
-            rospy.logdebug("Path: {}".format(util.print_coord_list(rospath)))
+                rospy.loginfo("Checking edge ({},{})".format(vcurr, vnext))
+                rospy.logdebug("Path: {}".format(util.print_coord_list(rospath)))
 
-            curr_edge_state = self.curr_graph.check_edge_state(vcurr, vnext, rospath,
-                                                               PADDING, False)
-            rospy.loginfo("result of check_edge_state: {}".format(curr_edge_state))
+                curr_edge_state = self.curr_graph.check_edge_state(vcurr, vnext, rospath,
+                                                                   PADDING, False)
+                rospy.loginfo("result of check_edge_state: {}".format(curr_edge_state))
 
-            if (curr_edge_state == self.base_map.G.BLOCKED and
-                not self.edge_under_observation(vnext, vcurr)):
-                # recalculate path on curr_graph
-                self.path_blocked = True
+                if (curr_edge_state == self.base_map.G.BLOCKED and
+                    not self.edge_under_observation(vnext, vcurr)):
+                    # recalculate path on curr_graph
+                    self.path_blocked = True
 
-            if self.path_blocked:
-                rospy.loginfo("Path is blocked!")
-                self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
-                self.replan()
+                if self.path_blocked:
+                    rospy.loginfo("Path is blocked!")
+                    self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                    self.replan()
 
         self.posearray_publisher.publish(self.conv_to_PoseArray(self.pose_seq))
 
     def replan(self):
         rospy.loginfo("In openloop, replanning on graph...")
+        rospy.sleep(1) # ensure goals set during this function are after the cancel time
         self.entered_openloop = True
         self.node = None
         start = self.vprev
