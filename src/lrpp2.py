@@ -85,8 +85,6 @@ class LRPP():
         self.path_blocked = False
         self.entered_openloop = False
 
-        print(self.curr_graph)
-
         # calculate policy
         self.p = update_p_est(self.M, self.tcount) 
         policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
@@ -138,7 +136,7 @@ class LRPP():
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
-        self.reset_edge_observer()
+        # self.reset_edge_observer()
         self.reset_travel_dist()
         rospy.sleep(3) # give some time to make sure costmap is cleared before starting
 
@@ -217,7 +215,8 @@ class LRPP():
     def save_map_and_filter(self):
         rospy.loginfo("Checking map from task {}".format(self.tcount))
         n = len(self.M)
-
+        
+        rospy.loginfo("Saved map: \n" + str(self.curr_graph))
         # copy current tgraph 
         new_map = Map(copy(self.curr_graph))
 
@@ -229,8 +228,6 @@ class LRPP():
 
     def shutdown(self):
         # print maps
-        for m in self.M:
-            print(m.G)
         rospy.loginfo("Shutting down...")
         rospy.signal_shutdown("Finished tasks.")
 
@@ -238,7 +235,7 @@ class LRPP():
         rospy.loginfo("Goal pose " + str(self.goal_cnt) + " is now being processed by the Action server...")
 
         # update which edge robot is traversing
-        if self.goal_cnt != 0: 
+        if self.goal_cnt > 0:
             self.vprev = self.path[self.goal_cnt - 1]
         self.vnext = self.path[self.goal_cnt]
 
@@ -508,6 +505,7 @@ class LRPP():
     def replan(self):
         rospy.loginfo("In openloop, replanning on graph...")
         rospy.sleep(1) # ensure goals set during this function are after the cancel time
+
         self.entered_openloop = True
         self.node = None
         start = self.vprev
@@ -593,6 +591,7 @@ class LRPP():
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
 
+    """
     def reset_edge_observer(self):
         rospy.wait_for_service('reset_edge_observer')
         try:
@@ -600,6 +599,7 @@ class LRPP():
             reset()
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
+    """
 
 def to_2d_path(rospath):
     # rospath - ros path message, seq of stamped poses
