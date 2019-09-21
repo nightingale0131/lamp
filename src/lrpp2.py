@@ -131,14 +131,14 @@ class LRPP():
         self.amcl_publisher.publish(init_pose)
 
         # Set up any obstacles
-        spawn_obstacles()
+        del_cmd = spawn_obstacles()
 
         # wait for input before sending goals to move_base
         raw_input('Remove/add obstacles as needed, then press any key to begin execution of task {}'.format(self.tcount))
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
-        self.reset_edge_observer()
+        # self.reset_edge_observer()
         self.reset_travel_dist()
         rospy.sleep(3) # give some time to make sure costmap is cleared before starting
 
@@ -200,7 +200,7 @@ class LRPP():
             self.shutdown()
 
         # clear all non-static obstacles
-        delete_obstacles()
+        delete_obstacles(del_cmd)
 
     def check_connection(self):
         # make sure there is a connection to move_base node
@@ -507,6 +507,8 @@ class LRPP():
 
     def replan(self):
         rospy.loginfo("In openloop, replanning on graph...")
+        rospy.sleep(1) # ensure if goals are cancelled, the next ones won't be
+
         self.entered_openloop = True
         self.node = None
         start = self.vprev
@@ -592,6 +594,7 @@ class LRPP():
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
 
+    """
     def reset_edge_observer(self):
         rospy.wait_for_service('reset_edge_observer')
         try:
@@ -599,6 +602,7 @@ class LRPP():
             reset()
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
+    """
 
 def to_2d_path(rospath):
     # rospath - ros path message, seq of stamped poses
