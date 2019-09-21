@@ -47,7 +47,7 @@ class EdgeObserver():
         self.edge_state_pub = rospy.Publisher("policy/edge_update", EdgeUpdate,
                                               queue_size=10)
 
-        s = rospy.Service('reset_edge_observer', Empty, self.reset_graph_service)
+        # s = rospy.Service('reset_edge_observer', Empty, self.reset_graph_service)
 
         self.edge_updater()
         # test visibility here
