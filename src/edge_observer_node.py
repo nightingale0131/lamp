@@ -37,7 +37,8 @@ class EdgeObserver():
         self.costmap = None
         self.vprev = 's'
         self.vnext = None
-        self.vis_v_in_submap = []
+        self.vis_v_in_submap = set() 
+        self.curr_submap = None
         self.robot_pose = None
         self.robot_range = self.get_robot_range()
 
@@ -79,9 +80,10 @@ class EdgeObserver():
             self.vnext = v
 
             if self.vprev != self.vnext:
-                # reset the 'visible' portals/vertices
-                self.vis_v_in_submap = []
-
+                # reset the 'visible' portals/vertices when curr_submap changes
+                rospy.loginfo("Changed submaps, resetting list of visible vertices")
+                self.curr_submap = self.base_graph.get_polygon(self.vprev, self.vnext)
+                self.vis_v_in_submap = set()
 
     def get_robot_range(self):
         # select range of robot's sensors, set by move_base parameters
@@ -109,7 +111,12 @@ class EdgeObserver():
                 dist_to_v = util.euclidean_distance(self.base_graph.pos(v),
                                                     self.robot_pose)
 
-                if (dist_to_u <= self.robot_range) and (dist_to_v <= self.robot_range):
+                edge_in_range = ((dist_to_u <= self.robot_range) and 
+                                 (dist_to_v <= self.robot_range))
+
+                edge_in_submap = (self.curr_submap == self.base_graph.get_polygon(u,v))
+
+                if edge_in_range or edge_in_submap:
                     edge_state = self.check_edge(u,v)
 
                     # prepare message
@@ -125,6 +132,20 @@ class EdgeObserver():
         submap = SubMap(self.costmap, bufpoly)
         bounds = [submap.minx, submap.maxx, submap.miny, submap.maxy]
         rospy.loginfo("Submap height: {}, width: {}".format(submap.height, submap.width))
+
+        u_is_visible = self.visible(u)
+        v_is_visible = self.visible(v)
+
+        # if both vertices are visible, return UNBLOCKED, 
+        # if one vertex is visible and the other one is where we came from, return UNBLOCKED
+        # otherwise search for path
+
+        if u_is_visible and v_is_visible:
+            return TGraph.UNBLOCKED
+        elif self.vprev == u and v_is_visible:
+            return TGraph.UNBLOCKED
+        elif self.vprev == v and u_is_visible:
+            return TGraph.UNBLOCKED
 
         (startx, starty) = self.base_graph.pos(u)
         (goalx, goaly) = self.base_graph.pos(v)
@@ -151,19 +172,6 @@ class EdgeObserver():
             return TGraph.BLOCKED
 
         rospy.loginfo("Path found!")
-
-        # if both vertices are visible, return UNBLOCKED, 
-        # if one vertex is visible and the other one is where we came from, return UNBLOCKED
-        # otherwise return original state
-        u_is_visible = self.visible(u)
-        v_is_visible = self.visible(v)
-
-        if u_is_visible and v_is_visible:
-            return TGraph.UNBLOCKED
-        elif self.vprev == u and v_is_visible:
-            return TGraph.UNBLOCKED
-        elif self.vprev == v and u_is_visible:
-            return TGraph.UNBLOCKED
 
         return TGraph.UNKNOWN
 
@@ -199,14 +207,23 @@ class EdgeObserver():
         # checks if vertex is visible to the robot
         location = self.base_graph.pos(vertex) # convert vertex to coordinates
         location = sh.Point(location)
-        result =  self.vis_poly.contains(location)
+        v_is_visible =  self.vis_poly.contains(location)
 
         # debugging
         rospy.loginfo("{} ({}) is visible: {}"
-                      .format(vertex, list(location.coords), result))
-        self.vis_v_in_submap.append(vertex)
+                      .format(vertex, list(location.coords), v_is_visible))
 
-        return result
+        if v_is_visible:
+            if vertex in self.base_graph.get_vertices_in_polygon(self.curr_submap):
+                rospy.loginfo("{} added to visible portals in submap".format(vertex))
+                self.vis_v_in_submap.add(vertex)
+            return True
+        elif vertex in self.vis_v_in_submap:
+            rospy.loginfo("{} was visible in submap".format(vertex))
+            # if vertex was visible at some point while traversing current submap
+            return True
+        else:
+            return False
 
     def to_shapely(self, vis_poly, vis_submap):
         boundary = []

@@ -248,7 +248,7 @@ class LRPP():
         rospy.logdebug("Feedback for goal " + str(self.goal_cnt) + ":\n" +
                       self.print_pose_in_euler(pose))
         rospy.loginfo("vprev = {}, vnext = {}".format(self.vprev, self.vnext))
-        self.v_publisher.publish(str(self.vprev))
+        self.v_publisher.publish(str(self.vprev), str(self.vnext))
 
         # check if robot is close enough to send next goal
         position = feedback.base_position.pose.position
