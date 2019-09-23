@@ -1,0 +1,2 @@
+string vprev
+string vnext

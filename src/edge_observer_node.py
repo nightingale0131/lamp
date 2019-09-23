@@ -16,7 +16,7 @@ from policy.tgraph import TGraph, polygon_dict_from_csv
 from policy import visibility as vis
 from copy import copy
 
-from policy.msg import EdgeUpdate, PrevVertex
+from policy.msg import EdgeUpdate, CurrEdge
 from geometry_msgs.msg import Point, Polygon, PoseWithCovarianceStamped
 from nav_msgs.msg import OccupancyGrid
 
@@ -36,13 +36,15 @@ class EdgeObserver():
         # self.curr_graph = copy(self.base_graph) 
         self.costmap = None
         self.vprev = 's'
+        self.vnext = None
+        self.vis_v_in_submap = []
         self.robot_pose = None
         self.robot_range = self.get_robot_range()
 
         self.map_sub = rospy.Subscriber("move_base/global_costmap/costmap", OccupancyGrid, self.map_callback, queue_size=1, buff_size=2**24)
         self.pose_sub = rospy.Subscriber("amcl_pose", PoseWithCovarianceStamped,
                                                 self.pose_callback, queue_size=1)
-        self.v_sub = rospy.Subscriber("policy/prev_vertex", PrevVertex, self.v_callback, queue_size=1)
+        self.v_sub = rospy.Subscriber("policy/current_edge", CurrEdge, self.v_callback, queue_size=1)
 
         self.edge_state_pub = rospy.Publisher("policy/edge_update", EdgeUpdate,
                                               queue_size=10)
@@ -65,9 +67,21 @@ class EdgeObserver():
 
     def v_callback(self, data):
         # vertex robot is leaving
-        v = data.v
+        u = data.vprev
+        if u.isdigit(): u = int(u)
+
+        v = data.vnext
         if v.isdigit(): v = int(v)
-        self.vprev = v
+
+        # maintain current submap and visible portals
+        if self.vprev != u or self.vnext != v:
+            self.vprev = u
+            self.vnext = v
+
+            if self.vprev != self.vnext:
+                # reset the 'visible' portals/vertices
+                self.vis_v_in_submap = []
+
 
     def get_robot_range(self):
         # select range of robot's sensors, set by move_base parameters
@@ -190,6 +204,7 @@ class EdgeObserver():
         # debugging
         rospy.loginfo("{} ({}) is visible: {}"
                       .format(vertex, list(location.coords), result))
+        self.vis_v_in_submap.append(vertex)
 
         return result
 

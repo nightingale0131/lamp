@@ -24,7 +24,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseWithCovari
 from geometry_msgs.msg import PoseWithCovariance, PoseWithCovarianceStamped, Twist, Vector3
 from gazebo_msgs.msg import ModelState
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
-from policy.msg import EdgeUpdate, PrevVertex
+from policy.msg import EdgeUpdate, CurrEdge
 from std_msgs.msg import Empty as rosEmpty
 
 from std_srvs.srv import *
@@ -70,7 +70,7 @@ class LRPP():
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
-        self.v_publisher = rospy.Publisher("policy/prev_vertex", PrevVertex, queue_size=10)
+        self.v_publisher = rospy.Publisher("policy/current_edge", CurrEdge, queue_size=10)
         self.amcl_publisher = rospy.Publisher("initialpose", PoseWithCovarianceStamped,
                 queue_size=10, latch=True)
 

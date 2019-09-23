@@ -53,7 +53,7 @@ catkin_python_setup()
 add_message_files(
   FILES
   EdgeUpdate.msg
-  PrevVertex.msg
+	CurrEdge.msg
 )
 
 ## Generate services in the 'srv' folder
