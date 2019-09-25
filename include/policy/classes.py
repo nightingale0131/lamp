@@ -138,11 +138,16 @@ class Map(object):
             for e in observation:
                 (a,b) = e
                 state = self.G.graph[a][b]['state']
-                if e not in self._features.keys():
+                key = None
+                if (a,b) in self._features.keys(): key = (a,b)
+                elif (b,a) in self._features.keys(): key = (b,a)
+                else:
                     self._features[e] = [ {v}, state ]
-                elif self._features[e][1] == state:
-                    self._features[e][0].add(v)
-                else: raise Exception('Conflicting states of feature {}'.format(e))
+
+                if key != None:
+                    if self._features[key][1] == state:
+                        self._features[key][0].add(v)
+                    else: raise Exception('Conflicting states of feature {}'.format(e))
 
     def feature_state( self, feature):
         if feature not in self.features():

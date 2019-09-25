@@ -177,11 +177,12 @@ class TGraph(object):
         # updates this object with the new information
         # new_info - {feature: {state: 0, weight: 1.4, ....}, feature:{...}, ... }
         
-        for edge, data in new_info:
+        for edge, data in new_info.items():
             print("{}: {}".format(edge, data))
             (u,v) = edge
-            assert (self.graph[u][v]['state'] != self.UNKNOWN),(
-                    "Overwriting non-unknown edge: {}!".format(edge))
+            assert (self.graph[u][v]['state'] == self.UNKNOWN),(
+                    "Overwriting non-unknown edge: {}, state: {}!".format(edge,
+                        self.graph[u][v]['state']))
 
             self.set_edge_state(u, v, data['state']) 
             self.set_edge_weight(u, v, data['weight'])
