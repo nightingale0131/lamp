@@ -22,12 +22,12 @@ vii_prob = 0.2
 viii_prob = 0.2
 
 random.seed()
-avoid_set = [(18.25,17.521),(16.681,3.661),(16.681,6.725),(14.182,8.204),(14.294,17.532),(10.169,8.204),(10.168,17.558),(5.787,3.507),(2.841,6.814)] #list of doorway locations to prevent spawning debris in doorways
 
 def spawn_obstacles():
     cmd = ''
     del_cmd = ''
     v_spawn = False #only spawn dumpster_v if dumpster_vi or dumpster_vii present
+    avoid_set = [(18.25,17.521),(16.681,3.661),(16.681,6.725),(14.182,8.204),(14.294,17.532),(10.169,8.204),(10.168,17.558),(5.787,3.507),(2.841,6.814)] #list of doorway locations to prevent spawning debris in doorways 
 
     if random.random() < barrier_prob: #barriers B G I
         cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_b -x 16.681 -y 3.661 -Y 0.0\n\
@@ -56,7 +56,7 @@ def spawn_obstacles():
             rosservice call gazebo/delete_model barrier_h\n'
 
     if random.random() < i_prob: 
-        x_pos = 18.092
+        x_pos = 18.12
         y_pos = random.random()*6.0 + 9.0
         cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_i -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n'
         del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_i\n'
@@ -64,7 +64,7 @@ def spawn_obstacles():
 
     if random.random() < ii_prob: 
         x_pos1 = 15.526
-        x_pos2 = 13.166 
+        x_pos2 = 13.106 
         y_pos = random.random()*5.0 + 10.0
         cmd += ("rosrun gazebo_ros spawn_model -database dumpster" + 
                 " -gazebo -model dumpster_ii_1 -x " + str(x_pos1) + 
@@ -130,7 +130,12 @@ def spawn_obstacles():
 
     num_debris = random.randint(0,11)
     num_spawned = 0
+    nloops = 0 
     while num_spawned < num_debris:
+        # prevent infinite loops
+        nloops += 1
+        if nloops > 1000: break
+
         loc = random.random()
         if loc < 0.1: #a
             x_pos = 18.8
@@ -138,7 +143,7 @@ def spawn_obstacles():
             ymax = 16.75
             y_pos = (ymax-ymin)*random.random()+ymin
         elif loc < 0.2: #b
-            x = 17.4
+            x_pos = 17.4
             ymin = 6.0
             ymax = 16.75
             y_pos = (ymax-ymin)*random.random()+ymin		
