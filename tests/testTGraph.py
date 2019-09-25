@@ -53,6 +53,16 @@ def test_get(G):
 
     print("Test passed\n")
 
+def test_update(G):
+    print("\nTesting update...")
+
+    logger.debug(G)
+    update = {(6,7): {'state': 0, 'weight': 10}}
+
+    G.update(update)
+
+    logger.debug(G)
+    print("Test passed\n")
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
@@ -65,5 +75,6 @@ if __name__ == '__main__':
     poly_dict = tgraph.polygon_dict_from_csv('../maps/test_large/test_large_polygons.csv')
     tgraph1 = tgraph.TGraph(graph, poly_dict)
 
-    test_get(tgraph1)
-    test_drawing(tgraph1)
+    test_update(tgraph1)
+    # test_get(tgraph1)
+    # test_drawing(tgraph1)
