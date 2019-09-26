@@ -302,14 +302,17 @@ class LRPP():
         dist_to_curr_goal = util.euclidean_distance((x,y), (gx,gy))
 
         if dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt < len(self.pose_seq) - 1):
-            rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached!")
             if self.vprev != self.vnext:
                 self.curr_graph.set_edge_state(self.vprev, self.vnext, self.base_map.G.UNBLOCKED)
-            self.goal_cnt += 1
 
-            self.set_and_send_next_goal()
+            if self.goal_cnt < len(self.pose_seq) - 1:
+                rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached!")
+                self.goal_cnt += 1
+                self.set_and_send_next_goal()
+            elif (self.goal_cnt == len(self.pose_seq) - 1):
+                rospy.loginfo("Reached end of path")
 
-        elif self.move_to_next_node():
+        if self.move_to_next_node():
             # if node under observation is no longer unknown, move to next node
             # selecting next node in tree and setting path
             (u,v) = self.node.opair.E 
@@ -317,11 +320,6 @@ class LRPP():
             self.node = self.node.next_node(state)
             self.set_new_path(self.node.path) # update pose seq
             self.set_and_send_next_goal()
-
-        elif dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt == len(self.pose_seq) - 1):
-            rospy.loginfo("Reached end of path")
-            # if move_to_next_node hasn't been activated, it must've reached the goal,
-            # otherwise there is an error in the code
 
     def move_to_next_node(self):
         # check if observation has been satisfied
