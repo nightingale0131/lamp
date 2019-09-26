@@ -34,6 +34,7 @@ PADDING = 0.3 # must be greater than xy_goal_tolerance
 PKGDIR = rospkg.RosPack().get_path('policy')
 # MAP = 'tristan_maze'
 MAP = 'test_large'
+RESULTSFILE = PKGDIR + "/results/" + MAP + "/lrpp_results.dat"
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -68,7 +69,7 @@ class LRPP():
         self.path_blocked = False # flag for path being blocked, calls reactive algo
         self.at_final_goal = False # flag for reaching final destination
         self.entered_openloop = False
-        self.naive_mode = False # flag for just using navfn
+        self.mode = None # what kind of policy to follow (policy, openloop, naive)
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
@@ -77,50 +78,72 @@ class LRPP():
         self.amcl_publisher = rospy.Publisher("initialpose", PoseWithCovarianceStamped,
                 queue_size=10, latch=True)
 
-        self.start_task()
+        self.start_task("policy")
         rospy.spin()
 
-    def start_task(self):
-        rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
+    def start_task(self, mode):
+        rospy.loginfo("Starting task in {} mode".format(mode))
+        self.mode = mode
+        self.check_mode()
 
         # create blank tgraph to fill in (make sure nothing is carried over!)
         self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
         self.path_blocked = False
         self.entered_openloop = False
-        self.naive_mode = False
 
-        # calculate policy
-        self.p = update_p_est(self.M, self.tcount) 
-        self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
-        rospy.loginfo(self.policy[0].print_policy())
+        if mode == "policy":
+            rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
+            self.p = update_p_est(self.M, self.tcount) 
+            self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
+            rospy.loginfo(self.policy[0].print_policy())
 
-        # setup policy in set_new_path
+        # set robot location
         (x,y) = self.curr_graph.pos('s')
         self.pos = (x,y) 
-        self.node = self.policy[0].next_node()
-        self.vprev = self.node.path[0] 
 
-        self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
-        rospy.loginfo("goalcnt: {}".format(self.goal_cnt))
+        if mode == "policy":
+            # set robot to follow policy
+            self.node = self.policy[0].next_node()
+            self.vprev = self.node.path[0] 
+            self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
+
+        elif mode == "openloop":
+            # set robot to go straight into openloop
+            self.entered_openloop = True
+            self.node = None
+            self.vprev = 's'
+            dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, 's', 'g')
+            self.set_new_path(paths['g'])
+
+        elif mode == "naive":
+            self.node = None
+            self.vprev = 's'
+            self.vnext = 'g'
+            self.path = ['g']
+            self.goal_cnt = 0
+            (gx,gy) = self.curr_graph.pos('g')
+
+            # modify pose_seq directly instead of setting path
+            self.pose_seq = [Pose(Point(gx,gy,0.0), 
+                Quaternion(*(quaternion_from_euler(0,0,0))))]
 
         # setup task environment
         rospy.loginfo("Setting up environment...")
+
         # Cancel all goals to move_base
         self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
 
-        # Move jackal back to beginning in gazebo
-        self.set_robot_pose(*(self.gaz_pose))
+        self.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
         rospy.sleep(1)
+        self.set_amcl_pose() # Set initial guess for amcl back to start 
 
-        # Set initial guess for amcl back to start 
-        self.set_amcl_pose()
-
-        # Set up any obstacles
-        self.del_cmd = spawn_obstacles()
+        # Set up any obstacles if starting a new task
+        if mode == "policy":
+            self.del_cmd = spawn_obstacles()
 
         # wait for input before sending goals to move_base
-        raw_input('Remove/add obstacles as needed, then press any key\
-                to begin execution of task {}'.format(self.tcount))
+        raw_input('Check that amcl localized properly!\
+ Press any key to begin execution of task {}'.format(self.tcount))
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
@@ -133,161 +156,78 @@ class LRPP():
         self.client.simple_state = 0 # set back to pending
 
         # setup subscribers
-        self.plan_subscriber = rospy.Subscriber("move_base/GlobalPlanner/plan", Path,
-                                                self.plan_callback, queue_size=1,
-                                                buff_size=2**24)
-        self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
-                                                self.edge_callback, queue_size=5)
+        if mode == "policy" or mode == "openloop":
+            self.plan_subscriber = rospy.Subscriber("move_base/GlobalPlanner/plan", Path,
+                                                    self.plan_callback, queue_size=1,
+                                                    buff_size=2**24)
+            self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
+                                                    self.edge_callback, queue_size=5)
 
         # run set_and_send_next goal with path
         self.set_and_send_next_goal()
 
-    def write_task_exec(self):
-        # wait until status == 3 and final goal pose reached before executing
-        # unsubscribe from map
-        self.plan_subscriber.unregister()
-        self.edge_subscriber.unregister()
-        # run map filter
-        self.save_map_and_filter()
-
-        # save any data into a file
-        f = open(PKGDIR + "/results/" + MAP + "/lrpp_results.dat", "a")
-        f.write("\nFinished executing task {}".format(self.tcount))
-        f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
-        f.write("\nEntered openloop: {}".format(self.entered_openloop))
-
-        f.write(self.policy[0].print_policy())
-
-        # print states
-        f.write("\n\n Map states")
-        for edge in self.base_graph.edges():
-            line = "\n{:<10}".format(edge) 
-            u,v = edge
-            for m in self.M:
-                line += "{:3}".format(m.G.edge_state(u,v))
-
-            f.write(line)
-
-        # print weights
-        f.write("\n\n Map weights")
-        for edge in self.base_graph.edges():
-            line = "\n{:<10}".format(edge) 
-            u,v = edge
-            for m in self.M:
-                line += "{:8.3f}".format(m.G.weight(u,v))
-
-            f.write(line)
-        f.close()
-
-    def start_naive(self):
-        # execute task but with just navfn ros, restart at beginning and set goal
-        self.naive_mode = True
-        (x,y) = self.curr_graph.pos('s')
-        self.pos = (x,y) 
-        self.vprev = 's'
-        self.vnext = 'g'
-        self.path = ['g']
-        self.goal_cnt = 0
-
-        (gx,gy) = self.curr_graph.pos('g')
-
-        # modify pose_seq[0]
-        self.pose_seq = [Pose(Point(gx,gy,0.0), 
-            Quaternion(*(quaternion_from_euler(0,0,0))))]
-
-        # prep robot
-        rospy.loginfo("Resetting robot for navfn...")
-        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
-        self.set_robot_pose(*(self.gaz_pose))
-        rospy.sleep(1)
-        self.set_amcl_pose
-
-        raw_input("Check initial pose is correct, then press any key to begin")
-
-        # reset costmap using service /move_base/clear_costmaps
-        self.clear_costmap_client()
-        self.reset_travel_dist()
-        rospy.sleep(2) # give some time to make sure costmap is cleared before starting
-
-        # double check connection with move base
-        self.check_connection()
-        rospy.loginfo("Status of action client: {}".format(self.client.simple_state))
-        self.client.simple_state = 0 # set back to pending
-
-        self.set_and_send_next_goal()
-
-    def write_naive_exec(self):
-        f = open(PKGDIR + "/results/" + MAP + "/lrpp_results.dat", "a")
-        f.write("\n\nNavFn Execution")
-        f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
-        f.write("\n==============================")
-        f.close()
-
-    def start_openloop(self):
-        # execute task with just openloop
-        # create blank tgraph to fill in (make sure nothing is carried over!)
-        self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
-        self.path_blocked = False
-        self.entered_openloop = True
-        self.naive_mode = True
-
-        # prep robot
-        rospy.loginfo("Resetting robot for openloop...")
-        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
-        (x,y) = self.curr_graph.pos('s')
-        self.pos = (x,y) 
-        self.node = None
-        self.vprev = 's'
-
-        dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, 's', 'g')
-        self.set_new_path(paths['g'])
-
-        self.set_robot_pose(*(self.gaz_pose))
-        rospy.sleep(1)
-        self.set_amcl_pose
-
-        raw_input("Check initial pose is correct, then press any key to begin")
-
-        # reset costmap using service /move_base/clear_costmaps
-        self.clear_costmap_client()
-        self.reset_travel_dist()
-        rospy.sleep(2) # give some time to make sure costmap is cleared before starting
-
-        # double check connection with move base
-        self.check_connection()
-        rospy.loginfo("Status of action client: {}".format(self.client.simple_state))
-        self.client.simple_state = 0 # set back to pending
-
-        # setup subscribers
-        self.plan_subscriber = rospy.Subscriber("move_base/NavfnROS/plan", Path,
-                                                self.plan_callback, queue_size=1,
-                                                buff_size=2**24)
-        self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
-                                                self.edge_callback, queue_size=5)
-        self.set_and_send_next_goal()
-
-    def write_openloop_exec(self):
-        # unsubscribe from map
-        self.plan_subscriber.unregister()
-        self.edge_subscriber.unregister()
-
-        f = open(PKGDIR + "/results/" + MAP + "/lrpp_results.dat", "a")
-        f.write("\n\nOpenloop Execution")
-        f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
-        f.write("\n==============================")
-        f.close()
-
     def finish_task(self):
-        # increment task counter
-        self.tcount +=1
-        # check if we need to keep going
-        if self.tcount == self.T + 1:
-            self.shutdown()
+        # open results file
+        f = open(RESULTSFILE, "a")
 
-        # clear all non-static obstacles
-        delete_obstacles(self.del_cmd)
+        if self.mode == "policy" or self.mode == "openloop":
+            # unsubscribe from plan and map
+            self.plan_subscriber.unregister()
+            self.edge_subscriber.unregister()
 
-        self.start_task()
+        if self.mode == "policy":
+            next_mode = "openloop"
+            # run map filter
+            self.save_map_and_filter()
+
+            # write
+            f.write("\nFinished executing task {}".format(self.tcount))
+            f.write("\nEntered openloop: {}".format(self.entered_openloop))
+
+            f.write(self.policy[0].print_policy())
+
+            # print states
+            f.write("\n\n Map states")
+            for edge in self.base_graph.edges():
+                line = "\n{:<10}".format(edge) 
+                u,v = edge
+                for m in self.M:
+                    line += "{:3}".format(m.G.edge_state(u,v))
+
+                f.write(line)
+
+            # print weights
+            f.write("\n\n Map weights")
+            for edge in self.base_graph.edges():
+                line = "\n{:<10}".format(edge) 
+                u,v = edge
+                for m in self.M:
+                    line += "{:8.3f}".format(m.G.weight(u,v))
+
+                f.write(line)
+
+            f.write("\n\nDistance travelled (m):\n  Policy: {:.3f}".format(self.travelled_dist))
+
+        elif self.mode == "openloop":
+            next_mode = "naive"
+            f.write("\n  Openloop: {:.3f}".format(self.travelled_dist))
+
+        elif self.mode == "naive":
+            next_mode = "policy"
+            f.write("\n  Naive: {:.3f}".format(self.travelled_dist))
+            f.write("\n==============================")
+
+            # clear all non-static obstacles
+            delete_obstacles(self.del_cmd)
+
+            # increment task counter
+            self.tcount +=1
+            # check if we need to keep going
+            if self.tcount == self.T + 1:
+                self.shutdown()
+
+        f.close()
+        self.start_task(next_mode)
 
     def check_connection(self):
         # make sure there is a connection to move_base node
@@ -406,12 +346,7 @@ class LRPP():
             rospy.loginfo("Done Status 3")
             if self.going_to_final_goal() == True:
                 rospy.loginfo("Final goal pose reached!")
-                if self.naive_mode == False:
-                    self.write_task_exec()
-                    self.start_naive()
-                else:
-                    self.write_naive_exec()
-                    self.finish_task()
+                self.finish_task()
             return
 
         if status == 4:
@@ -607,9 +542,7 @@ class LRPP():
         if dist['g'] == float('inf'):
             print(self.curr_graph.edges(data='state'))
             rospy.loginfo("Cannot go to goal! Ending task.")
-            self.write_task_exec()
             self.finish_task()
-            self.start_task()
             return # path_blocked = True from now until shutdown
 
         path = paths['g']
@@ -656,6 +589,10 @@ class LRPP():
 
     def reset_travel_dist(self):
         self.travelled_dist = 0
+
+    def check_mode(self):
+        assert (self.mode == "policy" or self.mode == "openloop" or self.mode == "naive"), (
+            "Mode '{}' is not valid!".format(self.mode))
 
     def clear_costmap_client(self):
         # service client for clear_costmaps
@@ -731,7 +668,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     # set number of tasks
-    ntasks = 10 
+    ntasks = 1
 
     # run LRPP
     try:
