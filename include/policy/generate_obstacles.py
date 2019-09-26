@@ -29,31 +29,25 @@ def spawn_obstacles():
     del_cmd = ''
     v_spawn = False #only spawn dumpster_v if dumpster_vi or dumpster_vii present
 
+    barriers = []
+
     if random.random() < barrier_prob: #barriers B G I
-        cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_b -x 16.681 -y 3.661 -Y 0.0\n\
-            rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_g -x 10.168 -y 17.558 -Y 1.570796\n\
-            rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_i -x 2.841 -y 6.814 -Y 0.0\n'
-        del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_b\n\
-            rosservice call gazebo/delete_model barrier_g\n\
-            rosservice call gazebo/delete_model barrier_i\n'
+        barriers += ['B', 'G', 'I']
 
     if random.random() < barrier_prob: #barriers A F
-        cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_a -x 18.25 -y 17.521 -Y 1.570796\n\
-            rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_f -x 10.169 -y 8.204 -Y 1.570796\n'
-        del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_a\n\
-            rosservice call gazebo/delete_model barrier_f\n'
+        barriers += ['A', 'F']
 
     if random.random() < barrier_prob: #barriers C D 
-        cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_c -x 16.681 -y 6.725 -Y 0.0\n\
-            rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_d -x 14.182 -y 8.204 -Y 1.570796\n'
-        del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_c\n\
-            rosservice call gazebo/delete_model barrier_d\n'
+        barriers += ['C', 'D']
 
     if random.random() < barrier_prob: #barriers E H 
-        cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_e -x 14.294 -y 17.532 -Y 1.570796\n\
-            rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier -gazebo -model barrier_h -x 5.787 -y 3.507 -Y 0.0\n'
-        del_cmd = del_cmd + 'rosservice call gazebo/delete_model barrier_e\n\
-            rosservice call gazebo/delete_model barrier_h\n'
+        barriers += ['E', 'H']
+
+    # add barriers to cmd
+    for letter in barriers:
+        temp_cmd, temp_del = barrier(letter)
+        cmd += temp_cmd
+        del_cmd += temp_del
 
     if random.random() < i_prob: 
         x_pos = 18.092
@@ -187,3 +181,35 @@ def spawn_obstacles():
 
 def delete_obstacles(del_cmd):
 	os.system(del_cmd)
+
+def barrier(letter):
+    cmd = "rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier\
+            -gazebo -model barrier_{} ".format(letter)
+
+    if letter == 'A':
+        cmd += '-x 18.25 -y 17.521 -Y 1.571\n'
+    elif letter == 'B':
+        cmd += '-x 16.681 -y 3.661 -Y 0.0\n'
+    elif letter == 'C':
+        cmd += '-x 16.681 -y 6.725 -Y 0.0\n'
+    elif letter == 'D':
+        cmd += '-x 14.182 -y 8.204 -Y 1.571\n'
+    elif letter == 'E':
+        cmd += '-x 14.294 -y 17.532 -Y 1.571\n'
+    elif letter == 'F':
+        cmd += '-x 10.169 -y 8.204 -Y 1.571\n'
+    elif letter == 'G':
+        cmd += '-x 10.168 -y 17.558 -Y 1.571\n'
+    elif letter == 'H':
+        cmd += '-x 5.787 -y 3.507 -Y 0.0\n'
+    elif letter == 'I':
+        cmd += '-x 2.841 -y 6.814 -Y 0.0\n'
+    else:
+        print("That barrier doesn't exist!")
+        return '', '' 
+
+    del_cmd = "rosservice call gazebo/delete_model barrier_{}\n".format(letter)
+
+    return cmd, del_cmd
+
+   return cmd, del_cmd
