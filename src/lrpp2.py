@@ -133,7 +133,7 @@ class LRPP():
         self.client.simple_state = 0 # set back to pending
 
         # setup subscribers
-        self.plan_subscriber = rospy.Subscriber("move_base/NavfnROS/plan", Path,
+        self.plan_subscriber = rospy.Subscriber("move_base/GlobalPlanner/plan", Path,
                                                 self.plan_callback, queue_size=1,
                                                 buff_size=2**24)
         self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
@@ -179,7 +179,7 @@ class LRPP():
             f.write(line)
         f.close()
 
-    def start_navfn(self):
+    def start_naive(self):
         # execute task but with just navfn ros, restart at beginning and set goal
         self.naive_mode = True
         (x,y) = self.curr_graph.pos('s')
@@ -216,7 +216,7 @@ class LRPP():
 
         self.set_and_send_next_goal()
 
-    def write_navfn_exec(self):
+    def write_naive_exec(self):
         f = open(PKGDIR + "/results/" + MAP + "/lrpp_results.dat", "a")
         f.write("\n\nNavFn Execution")
         f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
@@ -408,9 +408,9 @@ class LRPP():
                 rospy.loginfo("Final goal pose reached!")
                 if self.naive_mode == False:
                     self.write_task_exec()
-                    self.start_openloop()
+                    self.start_naive()
                 else:
-                    self.write_openloop_exec()
+                    self.write_naive_exec()
                     self.finish_task()
             return
 
