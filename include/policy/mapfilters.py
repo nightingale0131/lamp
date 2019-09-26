@@ -33,6 +33,7 @@ def filter1(supermaps, new_map):
             if (new_info != {} and map_merge == None):
                 print(new_info)
                 map_merge = m
+                n_map_merge = i
                 update = new_info
 
     if not agree_once:
@@ -41,6 +42,7 @@ def filter1(supermaps, new_map):
         print("Added new map")
     elif map_merge != None:
         # merge
+        print("Merging to map {}".format(n_map_merge))
         map_merge.updateG(update)
     else:
         print("No map added")

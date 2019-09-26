@@ -195,6 +195,8 @@ def save_print_contour(polygon):
 
 def to_shapely(polygon):
     # converts vis polygon to shapely polygon
+    if polygon.n() == 0: return Polygon()
+
     boundary = [(polygon[i].x(), polygon[i].y()) for i in range(polygon.n())]
     return Polygon(boundary)
 

@@ -53,6 +53,8 @@ class LRPP():
         self.start_pose = Pose(Point(x,y,0.0),
                 # Quaternion(*(quaternion_from_euler(0, 0, 1.57))))
                 Quaternion(*(quaternion_from_euler(0, 0, 3.14))))
+        # self.gaz_pose = (2, -4, 1.57) # (x, y, yaw (rad)), tristan
+        self.gaz_pose = (18.5, 18.5, 3.14) # (x, y, yaw (rad)), test_large
 
         # set all edges to UNBLOCKED for initial map
         for (u,v) in base_tgraph.edges():
@@ -66,6 +68,7 @@ class LRPP():
         self.path_blocked = False # flag for path being blocked, calls reactive algo
         self.at_final_goal = False # flag for reaching final destination
         self.entered_openloop = False
+        self.naive_mode = False # flag for just using navfn
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
@@ -84,16 +87,17 @@ class LRPP():
         self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
         self.path_blocked = False
         self.entered_openloop = False
+        self.naive_mode = False
 
         # calculate policy
         self.p = update_p_est(self.M, self.tcount) 
-        policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
-        rospy.loginfo(policy[0].print_policy())
+        self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
+        rospy.loginfo(self.policy[0].print_policy())
 
         # setup policy in set_new_path
         (x,y) = self.curr_graph.pos('s')
         self.pos = (x,y) 
-        self.node = policy[0].next_node()
+        self.node = self.policy[0].next_node()
         self.vprev = self.node.path[0] 
 
         self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
@@ -104,41 +108,24 @@ class LRPP():
         # Cancel all goals to move_base
         self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
 
-        # Move jackal back to beginning
-        model_state = ModelState("jackal", 
-                # Pose(Point(2,-4,1),Quaternion(*(quaternion_from_euler(0,0,1.57)))),
-                Pose(Point(18.5,18.5,1),Quaternion(*(quaternion_from_euler(0,0,3.14)))),
-                Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
-        self.set_robot_pose(model_state)
-
-        """
-        (gz_x, gz_y) = self.get_robot_pose("jackal")
-        while not (util.isclose(gz_x, 2, abs_tol=0.1) and util.isclose(gz_y, -4,
-            abs_tol=0.1)):
-            rospy.loginfo("Not at starting position yet!")
-            (gz_x, gz_y) = self.get_robot_pose("jackal")
-        """
+        # Move jackal back to beginning in gazebo
+        self.set_robot_pose(*(self.gaz_pose))
+        rospy.sleep(1)
 
         # Set initial guess for amcl back to start 
-        init_pose = PoseWithCovarianceStamped()
-        init_pose.pose.pose = self.start_pose
-        init_pose.pose.covariance = np.zeros(36)
-        init_pose.header.stamp = rospy.Time.now()
-        init_pose.header.frame_id = "map"
-
-        self.amcl_publisher.publish(init_pose)
+        self.set_amcl_pose()
 
         # Set up any obstacles
         self.del_cmd = spawn_obstacles()
 
         # wait for input before sending goals to move_base
-        raw_input('Remove/add obstacles as needed, then press any key to begin execution of task {}'.format(self.tcount))
+        raw_input('Remove/add obstacles as needed, then press any key\
+                to begin execution of task {}'.format(self.tcount))
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
-        # self.reset_edge_observer()
         self.reset_travel_dist()
-        rospy.sleep(3) # give some time to make sure costmap is cleared before starting
+        rospy.sleep(2) # give some time to make sure costmap is cleared before starting
 
         # double check connection with move base
         self.check_connection()
@@ -155,7 +142,7 @@ class LRPP():
         # run set_and_send_next goal with path
         self.set_and_send_next_goal()
 
-    def finish_task(self):
+    def write_task_exec(self):
         # wait until status == 3 and final goal pose reached before executing
         # unsubscribe from map
         self.plan_subscriber.unregister()
@@ -168,6 +155,8 @@ class LRPP():
         f.write("\nFinished executing task {}".format(self.tcount))
         f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
         f.write("\nEntered openloop: {}".format(self.entered_openloop))
+
+        f.write(self.policy[0].print_policy())
 
         # print states
         f.write("\n\n Map states")
@@ -188,9 +177,107 @@ class LRPP():
                 line += "{:8.3f}".format(m.G.weight(u,v))
 
             f.write(line)
+        f.close()
+
+    def start_navfn(self):
+        # execute task but with just navfn ros, restart at beginning and set goal
+        self.naive_mode = True
+        (x,y) = self.curr_graph.pos('s')
+        self.pos = (x,y) 
+        self.vprev = 's'
+        self.vnext = 'g'
+        self.path = ['g']
+        self.goal_cnt = 0
+
+        (gx,gy) = self.curr_graph.pos('g')
+
+        # modify pose_seq[0]
+        self.pose_seq = [Pose(Point(gx,gy,0.0), 
+            Quaternion(*(quaternion_from_euler(0,0,0))))]
+
+        # prep robot
+        rospy.loginfo("Resetting robot for navfn...")
+        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+        self.set_robot_pose(*(self.gaz_pose))
+        rospy.sleep(1)
+        self.set_amcl_pose
+
+        raw_input("Check initial pose is correct, then press any key to begin")
+
+        # reset costmap using service /move_base/clear_costmaps
+        self.clear_costmap_client()
+        self.reset_travel_dist()
+        rospy.sleep(2) # give some time to make sure costmap is cleared before starting
+
+        # double check connection with move base
+        self.check_connection()
+        rospy.loginfo("Status of action client: {}".format(self.client.simple_state))
+        self.client.simple_state = 0 # set back to pending
+
+        self.set_and_send_next_goal()
+
+    def write_navfn_exec(self):
+        f = open(PKGDIR + "/results/" + MAP + "/lrpp_results.dat", "a")
+        f.write("\n\nNavFn Execution")
+        f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
         f.write("\n==============================")
         f.close()
 
+    def start_openloop(self):
+        # execute task with just openloop
+        # create blank tgraph to fill in (make sure nothing is carried over!)
+        self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
+        self.path_blocked = False
+        self.entered_openloop = True
+        self.naive_mode = True
+
+        # prep robot
+        rospy.loginfo("Resetting robot for openloop...")
+        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+        (x,y) = self.curr_graph.pos('s')
+        self.pos = (x,y) 
+        self.node = None
+        self.vprev = 's'
+
+        dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, 's', 'g')
+        self.set_new_path(paths['g'])
+
+        self.set_robot_pose(*(self.gaz_pose))
+        rospy.sleep(1)
+        self.set_amcl_pose
+
+        raw_input("Check initial pose is correct, then press any key to begin")
+
+        # reset costmap using service /move_base/clear_costmaps
+        self.clear_costmap_client()
+        self.reset_travel_dist()
+        rospy.sleep(2) # give some time to make sure costmap is cleared before starting
+
+        # double check connection with move base
+        self.check_connection()
+        rospy.loginfo("Status of action client: {}".format(self.client.simple_state))
+        self.client.simple_state = 0 # set back to pending
+
+        # setup subscribers
+        self.plan_subscriber = rospy.Subscriber("move_base/NavfnROS/plan", Path,
+                                                self.plan_callback, queue_size=1,
+                                                buff_size=2**24)
+        self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
+                                                self.edge_callback, queue_size=5)
+        self.set_and_send_next_goal()
+
+    def write_openloop_exec(self):
+        # unsubscribe from map
+        self.plan_subscriber.unregister()
+        self.edge_subscriber.unregister()
+
+        f = open(PKGDIR + "/results/" + MAP + "/lrpp_results.dat", "a")
+        f.write("\n\nOpenloop Execution")
+        f.write("\nDistance travelled (m): {:.3f}".format(self.travelled_dist))
+        f.write("\n==============================")
+        f.close()
+
+    def finish_task(self):
         # increment task counter
         self.tcount +=1
         # check if we need to keep going
@@ -199,6 +286,8 @@ class LRPP():
 
         # clear all non-static obstacles
         delete_obstacles(self.del_cmd)
+
+        self.start_task()
 
     def check_connection(self):
         # make sure there is a connection to move_base node
@@ -317,8 +406,12 @@ class LRPP():
             rospy.loginfo("Done Status 3")
             if self.going_to_final_goal() == True:
                 rospy.loginfo("Final goal pose reached!")
-                self.finish_task()
-                self.start_task()
+                if self.naive_mode == False:
+                    self.write_task_exec()
+                    self.start_openloop()
+                else:
+                    self.write_openloop_exec()
+                    self.finish_task()
             return
 
         if status == 4:
@@ -514,6 +607,7 @@ class LRPP():
         if dist['g'] == float('inf'):
             print(self.curr_graph.edges(data='state'))
             rospy.loginfo("Cannot go to goal! Ending task.")
+            self.write_task_exec()
             self.finish_task()
             self.start_task()
             return # path_blocked = True from now until shutdown
@@ -572,14 +666,28 @@ class LRPP():
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
 
-    def set_robot_pose(self, model_state):
+    def set_robot_pose(self, x, y, yaw):
         # service client for setting robot pose in gazebo
+        model_state = ModelState("jackal",
+                Pose(Point(x,y,1),Quaternion(*(quaternion_from_euler(0,0,yaw)))),
+                Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
+
         rospy.wait_for_service('gazebo/set_model_state')
         try:
             set_model_state = rospy.ServiceProxy('gazebo/set_model_state', SetModelState)
             set_model_state(model_state)
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
+
+    def set_amcl_pose(self):
+        # set initial position for amcl
+        init_pose = PoseWithCovarianceStamped()
+        init_pose.pose.pose = self.start_pose
+        init_pose.pose.covariance = np.zeros(36)
+        init_pose.header.stamp = rospy.Time.now()
+        init_pose.header.frame_id = "map"
+
+        self.amcl_publisher.publish(init_pose)
 
     def get_robot_pose(self, model):
         # service client for getting robot pose in gazebo
@@ -590,16 +698,6 @@ class LRPP():
             return (state.pose.position.x, state.pose.position.y)
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
-
-    """
-    def reset_edge_observer(self):
-        rospy.wait_for_service('reset_edge_observer')
-        try:
-            reset = rospy.ServiceProxy('reset_edge_observer', Empty)
-            reset()
-        except rospy.ServiceException, e:
-            rospy.logerr("Service call failed: {}".format(e))
-    """
 
 def to_2d_path(rospath):
     # rospath - ros path message, seq of stamped poses
@@ -633,7 +731,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     # set number of tasks
-    ntasks = 3
+    ntasks = 10 
 
     # run LRPP
     try:
