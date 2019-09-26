@@ -13,7 +13,7 @@ from copy import copy
 import actionlib
 from policy.classes import Map
 from policy import utility as util
-from policy import rpp, timing, tgraph
+from policy import rpp, tgraph
 from policy import mapfilters as mf
 from policy.generate_obstacles import spawn_obstacles, delete_obstacles
 
@@ -142,8 +142,9 @@ class LRPP():
             self.del_cmd = spawn_obstacles()
 
         # wait for input before sending goals to move_base
-        raw_input('Check that amcl localized properly!\
- Press any key to begin execution of task {}'.format(self.tcount))
+        # raw_input('Check that amcl localized properly!\
+        # Press any key to begin execution of task {}'.format(self.tcount))
+        rospy.sleep(5)
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
@@ -163,10 +164,14 @@ class LRPP():
             self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
                                                     self.edge_callback, queue_size=5)
 
+        # set timer
+        self.task_start_time = rospy.Time.now()
         # run set_and_send_next goal with path
         self.set_and_send_next_goal()
 
     def finish_task(self):
+        task_time = rospy.Time.now() - self.task_start_time
+
         # open results file
         f = open(RESULTSFILE, "a")
 
@@ -206,15 +211,19 @@ class LRPP():
 
                 f.write(line)
 
-            f.write("\n\nDistance travelled (m):\n  Policy: {:.3f}".format(self.travelled_dist))
+            f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
+            f.write("\nPolicy      {:9.3f}               {}"
+                    .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
 
         elif self.mode == "openloop":
             next_mode = "naive"
-            f.write("\n  Openloop: {:.3f}".format(self.travelled_dist))
+            f.write("\nOpenloop    {:9.3f}               {}"
+                    .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
 
         elif self.mode == "naive":
             next_mode = "policy"
-            f.write("\n  Naive: {:.3f}".format(self.travelled_dist))
+            f.write("\nNaive       {:9.3f}               {}"
+                    .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
             f.write("\n==============================")
 
             # clear all non-static obstacles
@@ -352,9 +361,16 @@ class LRPP():
         if status == 4:
             # The goal was aborted during execution by the action server due
             # to some failure (Terminal State)
+            # ASSUMPTION: there's always a path to goal
+            # Failure is most likely due to localization error
             rospy.loginfo("Goal pose " + str(self.goal_cnt) +
                 " was aborted by the Action Server")
-            if not self.path_blocked:
+
+            if self.mode == "naive":
+                self.clear_costmap_client()
+                # attempt to go to goal again
+                self.set_and_send_next_goal()
+            elif not self.path_blocked:
                 self.path_blocked = True
                 # set edge to be blocked
                 vnext = self.path[self.goal_cnt]
@@ -668,7 +684,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     # set number of tasks
-    ntasks = 1
+    ntasks = 5
 
     # run LRPP
     try:

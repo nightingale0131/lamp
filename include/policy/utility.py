@@ -21,6 +21,10 @@ import math
 
 from priority_queue import PriorityQueue
 
+def secondsToStr(t):
+    return "%d:%02d:%02d.%06d" % \
+        reduce(lambda ll,b : divmod(ll[0],b) + ll[1:], [(t*1000,),1000,60,60])
+
 def print_coord_list(coords):
     # print a list of coordinates in a nice format
     # assume floats
