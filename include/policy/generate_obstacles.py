@@ -216,5 +216,3 @@ def barrier(letter):
     del_cmd = "rosservice call gazebo/delete_model barrier_{}\n".format(letter)
 
     return cmd, del_cmd
-
-   return cmd, del_cmd
