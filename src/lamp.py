@@ -201,11 +201,13 @@ class LRPP():
             for edge in self.base_graph.edges():
                 line = "\n{:<10}".format(edge) 
                 u,v = edge
+                line += "{:8.3f}".format(self.M[0].G.weight(u,v))
                 for m in self.M:
                     line += "{:3}".format(m.G.edge_state(u,v))
 
                 f.write(line)
 
+            """
             # print weights
             f.write("\n\n Map weights")
             for edge in self.base_graph.edges():
@@ -215,6 +217,7 @@ class LRPP():
                     line += "{:8.3f}".format(m.G.weight(u,v))
 
                 f.write(line)
+            """
 
             f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
             f.write("\nPolicy      {:9.3f}               {}"
