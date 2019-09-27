@@ -94,7 +94,7 @@ class EdgeObserver():
 
     def edge_updater(self):
         # publishes to edge_state
-        rate = rospy.Rate(5)   # Hz
+        rate = rospy.Rate(10)   # Hz
         while not rospy.is_shutdown():
             # check that costmap subscriber has started receiving messages
             if self.costmap == None or self.robot_pose == None:
@@ -163,15 +163,15 @@ class EdgeObserver():
 
         # see if A* returns a valid path
         came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
-        rospy.loginfo("Finished search")
+        rospy.logdebug("Finished search")
 
         try:
             self.path = util.reconstruct_path(came_from, startpx, goalpx)
         except KeyError:
-            rospy.loginfo("No path found!")
+            rospy.loginfo("Path NOT FOUND!")
             return TGraph.BLOCKED
 
-        rospy.loginfo("Path found!")
+        rospy.loginfo("Path FOUND!")
 
         return TGraph.UNKNOWN
 
@@ -208,22 +208,28 @@ class EdgeObserver():
         location = self.base_graph.pos(vertex) # convert vertex to coordinates
         location = sh.Point(location)
         v_is_visible =  self.vis_poly.contains(location)
+        result = False
 
         # debugging
-        rospy.loginfo("{} ({}) is visible: {}"
+        rospy.logdebug("{} ({}) is visible: {}"
                       .format(vertex, list(location.coords), v_is_visible))
 
         if v_is_visible:
             if vertex in self.base_graph.get_vertices_in_polygon(self.curr_submap):
                 rospy.loginfo("{} added to visible portals in submap".format(vertex))
                 self.vis_v_in_submap.add(vertex)
-            return True
+            result = True
         elif vertex in self.vis_v_in_submap:
-            rospy.loginfo("{} was visible in submap".format(vertex))
+            rospy.logdebug("{} was visible in submap".format(vertex))
             # if vertex was visible at some point while traversing current submap
-            return True
+            result = True
         else:
-            return False
+            result = False
+
+        rospy.loginfo("{} ({}) visibility: {}"
+                      .format(vertex, list(location.coords), result))
+
+        return result
 
     def to_shapely(self, vis_poly, vis_submap):
         boundary = []

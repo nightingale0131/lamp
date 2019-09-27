@@ -87,7 +87,7 @@ class LRPP():
         rospy.spin()
 
     def start_task(self, mode):
-        rospy.loginfo("Starting task in {} mode".format(mode))
+        rospy.loginfo("Starting task {} in {} mode".format(self.tcount, mode))
         self.mode = mode
         self.check_mode()
 
@@ -151,6 +151,8 @@ class LRPP():
         # Press any key to begin execution of task {}'.format(self.tcount))
         rospy.sleep(5)
 
+        rospy.loginfo("Finished environment setup. Clearing cost map...")
+
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
         self.reset_travel_dist()
@@ -169,6 +171,7 @@ class LRPP():
             self.edge_subscriber = rospy.Subscriber("policy/edge_update", EdgeUpdate,
                                                     self.edge_callback, queue_size=5)
 
+        rospy.loginfo("Starting execution for task {}".format(self.tcount))
         # set timer
         self.task_start_time = rospy.Time.now()
         # run set_and_send_next goal with path
@@ -314,7 +317,7 @@ class LRPP():
         dist_to_curr_goal = util.euclidean_distance((x,y), (gx,gy))
 
         if dist_to_curr_goal < TOL:
-            if self.vprev != self.vnext:
+            if self.vprev != self.vnext and self.mode != "naive":
                 self.curr_graph.set_edge_state(self.vprev, self.vnext, self.base_map.G.UNBLOCKED)
 
             if self.goal_cnt < len(self.pose_seq) - 1:
@@ -400,7 +403,7 @@ class LRPP():
                 self.replan()
             else:
                 rospy.logerr("Something went wrong, ending task execution...")
-                self.finish_task()
+                self.finish_task(err=True)
             return
 
         if status == 8:
@@ -569,7 +572,7 @@ class LRPP():
         if dist['g'] == float('inf'):
             print(self.curr_graph.edges(data='state'))
             rospy.loginfo("Cannot go to goal! Ending task.")
-            self.finish_task()
+            self.finish_task(err=True)
             return # path_blocked = True from now until shutdown
 
         path = paths['g']
@@ -701,7 +704,7 @@ if __name__ == '__main__':
     poly_dict = tgraph.polygon_dict_from_csv(PKGDIR + '/maps/' + MAP + '/' + MAP + '_polygons.csv')
 
     # setup logging
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     # set number of tasks
     ntasks = 10
