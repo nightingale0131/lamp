@@ -30,13 +30,15 @@ from std_msgs.msg import Empty as rosEmpty
 from std_srvs.srv import *
 from gazebo_msgs.srv import *
 
-PADDING = 1 # how much to inflate convex region by (to allow for small localization
-            #   variations, must be greater than TOL
-TOL = 0.5 # tolerance from waypoint before moving to next waypoint
 PKGDIR = rospkg.RosPack().get_path('policy')
 # MAP = 'tristan_maze'
 MAP = 'test_large'
+
 RESULTSFILE = PKGDIR + "/results/" + MAP + "/lrpp_results.dat"
+PADDING = 1 # how much to inflate convex region by (to allow for small localization
+            #   variations, must be greater than TOL
+TOL = 0.5 # tolerance from waypoint before moving to next waypoint
+NRETRIES = 5 # number of retries on naive mode before giving up execution
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -72,6 +74,7 @@ class LRPP():
         self.at_final_goal = False # flag for reaching final destination
         self.entered_openloop = False
         self.mode = None # what kind of policy to follow (policy, openloop, naive)
+        self.retries_left = NRETRIES
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
@@ -344,6 +347,8 @@ class LRPP():
         else: return False
 
     def done_cb(self, status, result):
+        rospy.loginfo("Move base client status: {}".format(status))
+
         # refer to http://docs.ros.org/diamondback/api/actionlib_msgs/html/msg/GoalStatus.html
         if status == 2:
             # The goal received a cancel request after it started executing
@@ -354,6 +359,7 @@ class LRPP():
         if status == 3:
             # The goal was achieved successfully by the action server (Terminal State)
             rospy.logwarn("Status 3 for goal pose {}".format(self.goal_cnt))
+            self.retries_left = NRETRIES
             if self.going_to_final_goal() == True:
                 rospy.loginfo("Final goal pose reached!")
                 self.finish_task()
@@ -362,34 +368,30 @@ class LRPP():
                 self.set_and_send_next_goal()
             return
 
-        if status == 4:
+        if status == 4 or status == 5:
             # The goal was aborted during execution by the action server due
             # to some failure (Terminal State)
             # ASSUMPTION: there's always a path to goal
             # Failure is most likely due to localization error
-            rospy.loginfo("Goal pose " + str(self.goal_cnt) +
+            rospy.logwarn("Goal pose " + str(self.goal_cnt) +
                 " was aborted by the Action Server")
 
-            if self.mode == "naive":
+            if self.mode == "naive" and self.retries_left > 0:
+                self.retries_left -= 1
+
+                # clear map and attempt to go to goal again
                 self.clear_costmap_client()
-                # attempt to go to goal again
                 self.set_and_send_next_goal()
-            elif not self.path_blocked:
+            elif self.vnext != self.vprev and self.mode != "naive":
                 self.path_blocked = True
                 # set edge to be blocked
-                self.curr_graph.set_edge_state(self.vnext, self.vcurr, self.base_map.G.BLOCKED)
-                self.curr_graph.set_edge_weight(self.vnext, self.vcurr,float('inf'))
+                self.curr_graph.set_edge_state(self.vnext, self.vprev, self.base_map.G.BLOCKED)
+                self.curr_graph.set_edge_weight(self.vnext, self.vprev,float('inf'))
 
                 self.replan()
-            return
-
-        if status == 5:
-            # The goal was rejected by the action server without being processed,
-            # because the goal was unattainable or invalid (Terminal State)
-            rospy.loginfo("Goal pose " + str(self.goal_cnt) + 
-                " has been rejected by the Action Server")
-            rospy.signal_shutdown("Goal pose "+str(self.goal_cnt) +
-                " rejected, shutting down!")
+            else:
+                rospy.logerr("Something went wrong, ending task execution...")
+                self.finish_task()
             return
 
         if status == 8:
@@ -398,7 +400,6 @@ class LRPP():
             rospy.loginfo("Goal pose "+str(self.goal_cnt) + 
                 " received a cancel request before it started executing, successfully cancelled!")
 
-        rospy.logwarn("Move base client status: {}".format(status))
 
     def set_and_send_next_goal(self):
         next_goal = MoveBaseGoal()
