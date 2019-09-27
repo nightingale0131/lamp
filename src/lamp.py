@@ -383,6 +383,8 @@ class LRPP():
                 " was aborted by the Action Server")
 
             if self.mode == "naive" and self.retries_left > 0:
+                rospy.logerr("Clearing cost map and resending goal...Retries left: {}"
+                        .format(self.retries_left))
                 self.retries_left -= 1
 
                 # clear map and attempt to go to goal again
