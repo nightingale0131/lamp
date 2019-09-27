@@ -174,7 +174,7 @@ class LRPP():
         # run set_and_send_next goal with path
         self.set_and_send_next_goal()
 
-    def finish_task(self):
+    def finish_task(self, err=False):
         task_time = rospy.Time.now() - self.task_start_time
 
         # open results file
@@ -239,6 +239,9 @@ class LRPP():
             # check if we need to keep going
             if self.tcount == self.T + 1:
                 self.shutdown()
+
+        if err == True:
+            f.write("    UNEXPECTED ERROR")
 
         f.close()
         self.start_task(next_mode)
@@ -382,6 +385,7 @@ class LRPP():
                 # clear map and attempt to go to goal again
                 self.clear_costmap_client()
                 self.set_and_send_next_goal()
+
             elif self.vnext != self.vprev and self.mode != "naive":
                 self.path_blocked = True
                 # set edge to be blocked
@@ -399,7 +403,6 @@ class LRPP():
             # and was successfully cancelled (Terminal State)
             rospy.loginfo("Goal pose "+str(self.goal_cnt) + 
                 " received a cancel request before it started executing, successfully cancelled!")
-
 
     def set_and_send_next_goal(self):
         next_goal = MoveBaseGoal()
