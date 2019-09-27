@@ -30,7 +30,9 @@ from std_msgs.msg import Empty as rosEmpty
 from std_srvs.srv import *
 from gazebo_msgs.srv import *
 
-PADDING = 0.3 # must be greater than xy_goal_tolerance
+PADDING = 1 # how much to inflate convex region by (to allow for small localization
+            #   variations, must be greater than TOL
+TOL = 0.5 # tolerance from waypoint before moving to next waypoint
 PKGDIR = rospkg.RosPack().get_path('policy')
 # MAP = 'tristan_maze'
 MAP = 'test_large'
@@ -285,7 +287,8 @@ class LRPP():
 
         rospy.logdebug("Feedback for goal " + str(self.goal_cnt) + ":\n" +
                       self.print_pose_in_euler(pose))
-        rospy.loginfo("vprev = {}, vnext = {}".format(self.vprev, self.vnext))
+        rospy.loginfo("Feedback for goal {}: vprev = {}, vnext = {}"
+                      .format(self.goal_cnt, self.vprev, self.vnext))
         self.v_publisher.publish(str(self.vprev), str(self.vnext))
 
         # check if robot is close enough to send next goal
@@ -301,7 +304,7 @@ class LRPP():
 
         dist_to_curr_goal = util.euclidean_distance((x,y), (gx,gy))
 
-        if dist_to_curr_goal < xy_goal_tolerance and (self.goal_cnt < len(self.pose_seq) - 1):
+        if dist_to_curr_goal < TOL:
             if self.vprev != self.vnext:
                 self.curr_graph.set_edge_state(self.vprev, self.vnext, self.base_map.G.UNBLOCKED)
 
@@ -350,10 +353,13 @@ class LRPP():
 
         if status == 3:
             # The goal was achieved successfully by the action server (Terminal State)
-            rospy.loginfo("Done Status 3")
+            rospy.logwarn("Status 3 for goal pose {}".format(self.goal_cnt))
             if self.going_to_final_goal() == True:
                 rospy.loginfo("Final goal pose reached!")
                 self.finish_task()
+            else:
+                # robot might be stuck, try sending goal again
+                self.set_and_send_next_goal()
             return
 
         if status == 4:
@@ -395,6 +401,7 @@ class LRPP():
             rospy.loginfo("Goal pose "+str(self.goal_cnt) + 
                 " received a cancel request before it started executing, successfully cancelled!")
 
+        rospy.logwarn("Move base client status: {}".format(status))
 
     def set_and_send_next_goal(self):
         next_goal = MoveBaseGoal()
@@ -682,7 +689,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     # set number of tasks
-    ntasks = 5
+    ntasks = 10
 
     # run LRPP
     try:
