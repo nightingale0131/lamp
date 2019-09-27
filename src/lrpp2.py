@@ -377,13 +377,10 @@ class LRPP():
             elif not self.path_blocked:
                 self.path_blocked = True
                 # set edge to be blocked
-                vnext = self.path[self.goal_cnt]
-                vcurr = self.path[self.goal_cnt - 1]
-                self.curr_graph.set_edge_state(vnext, vcurr, self.base_map.G.BLOCKED)
-                self.curr_graph.set_edge_weight(vnext, vcurr,float('inf'))
+                self.curr_graph.set_edge_state(self.vnext, self.vcurr, self.base_map.G.BLOCKED)
+                self.curr_graph.set_edge_weight(self.vnext, self.vcurr,float('inf'))
 
                 self.replan()
-                self.path_blocked = False
             return
 
         if status == 5:
