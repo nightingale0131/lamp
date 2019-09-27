@@ -296,7 +296,7 @@ class LRPP():
         (x,y) = (position.x, position.y)
 
         # update distance travelled and current position
-        self.travelled_dist += util.euclidean_distance((x,y), self.pos)
+        self.update_travel_dist(util.euclidean_distance((x,y), self.pos))
         self.pos = (x,y)
 
         curr_goal = self.pose_seq[self.goal_cnt].position
@@ -610,6 +610,15 @@ class LRPP():
 
     def reset_travel_dist(self):
         self.travelled_dist = 0
+
+    def update_travel_dist(self, d):
+        # to avoid including localization errors, throw out calculation if d > 5m
+        limit = 5.0
+        if d <= limit:
+            self.travelled_dist += d
+        else:
+            rospy.logerr("LOCALIZATION: Travel distance exceeded {:.2f}m in one time step."
+                    .format(limit))
 
     def check_mode(self):
         assert (self.mode == "policy" or self.mode == "openloop" or self.mode == "naive"), (
