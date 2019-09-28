@@ -178,7 +178,7 @@ class TGraph(object):
         # new_info - {feature: {state: 0, weight: 1.4, ....}, feature:{...}, ... }
         
         for edge, data in new_info.items():
-            print("{}: {}".format(edge, data))
+            logger.info("{}: {}".format(edge, data))
             (u,v) = edge
             assert (self.graph[u][v]['state'] == self.UNKNOWN),(
                     "Overwriting non-unknown edge: {}, state: {}!".format(edge,

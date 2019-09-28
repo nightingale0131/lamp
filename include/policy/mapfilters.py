@@ -28,10 +28,10 @@ def filter1(supermaps, new_map):
         if in_agreement:
             agree_once = True
             m.n += 1
-            print("New map agrees with supermap {}".format(i))
+            logger.info("New map agrees with supermap {}".format(i))
 
             if (new_info != {} and map_merge == None):
-                print(new_info)
+                logger.info(new_info)
                 map_merge = m
                 n_map_merge = i
                 update = new_info

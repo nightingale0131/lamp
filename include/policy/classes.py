@@ -108,6 +108,9 @@ class Map(object):
             - _visibility(
         The class must have the idea of vertices (states that the robot can move between)
         and features (some discretization of what the robot can sense)
+
+        This is a really dumb class that makes everything more complicated than it needs
+        to be. But removing it is difficult.
     """
     def __init__( self, G ):
         self.G = G # G - processed sensor data from robot 
@@ -163,26 +166,34 @@ class Map(object):
         # returns set of features observable in this map
         return set(self._features.keys())
 
-    def agrees_with(self, M):
+    def agrees_with(self, m):
         # returns a bool (whether maps agree or not) and if they agree, a dict of new
         # feature, state info to update the self with. Otherwise empty dict is returned.
         # - doesn't deal w/ the case where a feature exists in one map but not the other,
         # assumes that the same features will be listed in _features for all maps
 
         # M is another Map type object, should check G attr is the same type
-        if type(self.G) != type(M.G): 
+        if type(self.G) != type(m.G): 
             raise Exception("Maps don't contain the same sensor data type!")
 
         new_info = {} 
         for e, value in self._features.items():
+            (a,b) = e 
             state = value[1]
-            logger.debug("Checking state of {}: M1 = {}, M2 = {}"
-                    .format(e, state, M.feature_state(e)))
-            if state == self.G.UNKNOWN and M.feature_state(e) != self.G.UNKNOWN:
+
+            # hacky way to make sure both orientations of edge feature is checked
+            if m.feature_state((a,b)) != self.G.UNKNOWN:
+                mstate = m.feature_state((a,b))
+            if m.feature_state((b,a)) != self.G.UNKNOWN:
+                mstate = m.feature_state((b,a))
+
+            logger.debug("Checking state of {}: self = {}, newmap = {}"
+                    .format(e, state, mstate))
+            if state == self.G.UNKNOWN and mstate != self.G.UNKNOWN:
                 # if feature state is unknown in self but known in M, this is new info wrt
                 # self
-                new_info[e] = M.G.edge_info(e[0],e[1])
-            elif state != M.feature_state(e) and M.feature_state(e) != self.G.UNKNOWN:
+                new_info[e] = m.G.edge_info(e[0],e[1])
+            elif state != mstate and mstate != self.G.UNKNOWN:
                 # if feature is known in both maps and they are different
                 return False, {}
 
@@ -192,3 +203,4 @@ class Map(object):
         # updates only sensor information with new information
         # new_info = {feature: state, feature: state, ...}
         self.G.update(new_info)
+        self.update_all_feature_states()
