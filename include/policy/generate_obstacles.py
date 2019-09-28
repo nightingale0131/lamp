@@ -53,7 +53,7 @@ def spawn_obstacles():
         x_pos = 18.12
         y_pos = random.random()*6.0 + 9.0
         cmd += ("rosrun gazebo_ros spawn_model -database dumpster" + 
-                " -gazebo -model dumpster_ii_1 -x " + str(x_pos) + 
+                " -gazebo -model dumpster_i -x " + str(x_pos) + 
                 ' -y ' + str(y_pos) + " -Y 1.8\n")
         del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_i\n'
         avoid_set.append((x_pos,y_pos))
