@@ -155,7 +155,7 @@ class Map(object):
     def feature_state( self, feature):
         if feature not in self.features():
             logger.error("{} not a feature in current map!".format(feature))
-            return -1
+            return self.G.UNKNOWN
         return self._features[feature][1]
 
     def feature_viewable_from(self, feature):
@@ -180,6 +180,7 @@ class Map(object):
         for e, value in self._features.items():
             (a,b) = e 
             state = value[1]
+            mstate = self.G.UNKNOWN
 
             # hacky way to make sure both orientations of edge feature is checked
             if m.feature_state((a,b)) != self.G.UNKNOWN:

@@ -3,99 +3,74 @@
 import logging
 logger = logging.getLogger(__name__)
 import os, glob
+from copy import copy
 
-from policy.gridgraph import GridGraph
+from policy import tgraph
 from policy import utility as util
-from policy import mapFilters as mf, timing
+from policy import mapfilters as mf
 from policy.classes import Map
 import networkx as nx
 import cv2, math
 from matplotlib import pyplot as plt
 
-def import_maps(folder, goal, graph=None):
-    # imports all pgm/yaml files in folder
-    # assumes they are all for the same environment and start/goal is the same
-    supermaps = []
-    count = 0 
-    for pgm_path in sorted(glob.glob(folder + "/*.pgm")):
-        count += 1
+def setup_graph1(G):
+    G.set_edge_state('s', 7, G.UNBLOCKED)
+    G.set_edge_state(6, 7, G.UNBLOCKED)
+    G.set_edge_state(6, 5, G.UNBLOCKED)
+    G.set_edge_state(5, 12, G.UNBLOCKED)
+    G.set_edge_state(11, 12, G.UNBLOCKED)
+    G.set_edge_state(11, 10, G.UNBLOCKED)
+    G.set_edge_state(9, 10, G.UNBLOCKED)
+    G.set_edge_state(9, 'g', G.UNBLOCKED)
 
-        # get yaml file as well
-        (root, ext) = os.path.splitext(pgm_path)
-        filename = os.path.basename(root)
-        yaml_path = root + ".yaml"
-        print("Analyzing " + filename)
+    set_blocked(G, 7, 8)
+    set_blocked(G, 6, 8)
+    set_blocked(G, 4, 5)
+    set_blocked(G, 16, 10)
 
-        if count == 1:
-            # assume 00 is the zero map
-            if graph != None:
-                gridgraph = GridGraph(pgm_path, yaml_path, goal, custom_graph=graph)
-            else:
-                gridgraph = GridGraph(pgm_path, yaml_path, goal, graph_res=1.5) 
-            supermaps.append(Map(gridgraph))
-            print(nx.info(supermaps[0].G.graph))
-            timing.log("Finished visibility check")
-        else:
-            gridgraph = GridGraph(pgm_path, yaml_path, goal,
-                    refmap=supermaps[0].G)
-            new_map = Map(gridgraph)
-            timing.log("Finished visibility check")
+    logger.info("Successfully setup graph1")
 
-            supermaps = mf.filter1(supermaps, new_map)
-            timing.log("Finished filtering")
+def setup_graph2(G):
+    G.set_edge_state('s', 7, G.UNBLOCKED)
+    G.set_edge_state(6, 7, G.UNBLOCKED)
+    G.set_edge_state(6, 5, G.UNBLOCKED)
+    G.set_edge_state(5, 12, G.UNBLOCKED)
+    G.set_edge_state(13, 12, G.UNBLOCKED)
+    G.set_edge_state(13, 16, G.UNBLOCKED)
+    G.set_edge_state(9, 16, G.UNBLOCKED)
+    G.set_edge_state(9, 'g', G.UNBLOCKED)
 
-    print("Imported {} maps.".format(len(supermaps)))
-    return supermaps
+    set_blocked(G, 6, 8)
+    set_blocked(G, 4, 5)
+    set_blocked(G, 4, 12)
+    set_blocked(G, 11, 13)
+    set_blocked(G, 8, 16)
 
-def draw_graphs(maps):
-    # maps - list of type Map
-    fig = plt.figure()
-    nplots = len(maps)
-    pos = nx.get_node_attributes(maps[0].G.graph, 'pos')
-    nrows = int(math.ceil(nplots/3.0))
-    ncols = 3
+    logger.info("Successfully setup graph2")
 
-    for i, m in enumerate(maps):
-        ax = fig.add_subplot(nrows, ncols, i+1)
-        gridgraph = m.G
-        graph = gridgraph.graph
-        not_blocked, unknown = _get_not_blocked_edges(gridgraph)
-        ax.imshow(gridgraph.occ_grid, cmap='gray', interpolation='bicubic',
-                extent=gridgraph.bounds)
-        nx.draw(graph, pos, ax=ax, node_size=20, edgelist=unknown, edge_color='g')
-        nx.draw(graph, pos, ax=ax, node_size=20, node_color='k', edgelist=not_blocked, alpha=0.5,
-                with_labels=True, font_color='m', font_size=14 )
-        ax.set_axis_on()
-
-    plt.show()
-
-def _get_not_blocked_edges(gridgraph):
-    # return list of unblocked and unknown edges
-    not_blocked = []
-    unknown=[]
-
-    for edge in list(gridgraph.graph.edges()):
-        (u,v) = edge
-        if gridgraph.graph[u][v]['state'] == gridgraph.UNBLOCKED:
-            not_blocked.append(edge)
-        elif gridgraph.graph[u][v]['state'] == gridgraph.UNKNOWN:
-            unknown.append(edge)
-
-    return not_blocked, unknown
+def set_blocked(G, u, v):
+    G.set_edge_state(u, v, G.BLOCKED)
+    G.set_edge_weight(u, v, float('inf'))
 
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
-    logging.basicConfig(filename=testpath + '/testMapAgreement_debug.log', filemode='w',level=logging.INFO)
-    mapdir = testpath + '/results/tristan maze/SameTrial'
-    # mapdir = testpath + '/results/simple_maps/test'
-    goal = (8.5, 8.0) # tristan_maze 
-    # goal = (-8, 4.5) # simple
+    # logging.basicConfig(filename=testpath + '/testMapAgreement_debug.log', filemode='w',level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
-    # create custom graph for test case
-    G = nx.read_yaml(testpath + '/tristan_maze_custom.yaml')
+    graph = nx.read_yaml('../maps/tristan_maze/tristan_maze_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv('../maps/tristan_maze/tristan_maze_polygons.csv')
 
-    M = import_maps(mapdir, goal)
- 
-    # show plots
-    draw_graphs(M)
+    test_tgraph1 = tgraph.TGraph(graph, poly_dict)
+    test_tgraph2 = tgraph.TGraph(graph, poly_dict)
 
+    setup_graph1(test_tgraph1)
+    setup_graph2(test_tgraph2)
+
+    map1 = Map(copy(test_tgraph1))
+    map2 = Map(copy(test_tgraph2))
+
+    mf.filter1([map1], map2)
+
+    logger.info(map1.G)
+
+    logger.info("Test passed")
