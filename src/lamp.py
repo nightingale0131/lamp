@@ -149,9 +149,8 @@ class LRPP():
         # wait for input before sending goals to move_base
         # raw_input('Check that amcl localized properly!\
         # Press any key to begin execution of task {}'.format(self.tcount))
-        rospy.sleep(5)
-
         rospy.loginfo("Finished environment setup. Clearing cost map...")
+        rospy.sleep(5)
 
         # reset costmap using service /move_base/clear_costmaps
         self.clear_costmap_client()
