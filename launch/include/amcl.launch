@@ -43,9 +43,9 @@
     <!-- Increase tolerance because the computer can get quite busy -->
     <param name="transform_tolerance" value="1.0"/>
     <!-- Exponential decay rate for the slow average weight filter, used in deciding when to recover by adding random poses. A good value might be 0.001. -->
-    <param name="recovery_alpha_slow" value="0.0"/>
+    <param name="recovery_alpha_slow" value="0.001"/>
     <!--Exponential decay rate for the fast average weight filter, used in deciding when to recover by adding random poses. A good value might be 0.1. -->
-    <param name="recovery_alpha_fast" value="0.5"/>
+    <param name="recovery_alpha_fast" value="0.1"/>
     <!-- Initial pose mean -->
     <param name="initial_pose_x" value="0.0" />
     <param name="initial_pose_y" value="0.0" />
