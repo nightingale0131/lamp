@@ -75,6 +75,7 @@ class LRPP():
         self.entered_openloop = False
         self.mode = None # what kind of policy to follow (policy, openloop, naive)
         self.retries_left = NRETRIES
+        self.localization_err = False
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
@@ -95,6 +96,7 @@ class LRPP():
         self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
         self.path_blocked = False
         self.entered_openloop = False
+        self.localization_err = False
 
         if mode == "policy":
             rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
@@ -247,6 +249,9 @@ class LRPP():
 
         if err == True:
             f.write("    UNEXPECTED ERROR")
+
+        if self.localization_err == True:
+            f.write("    LOCALIZATION ERROR")
 
         f.close()
         self.start_task(next_mode)
@@ -625,6 +630,7 @@ class LRPP():
         if d <= limit:
             self.travelled_dist += d
         else:
+            self.localization_err = True
             rospy.logerr("LOCALIZATION: Travel distance exceeded {:.2f}m in one time step."
                     .format(limit))
 
