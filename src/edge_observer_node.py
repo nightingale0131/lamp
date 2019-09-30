@@ -23,6 +23,7 @@ from nav_msgs.msg import OccupancyGrid
 from std_srvs.srv import *
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
+LETHAL = 99 # value in costmap to be considered non-passable
 PKGDIR = rospkg.RosPack().get_path('policy')
 # MAP = 'tristan_maze'
 MAP = 'test_large'
@@ -90,7 +91,12 @@ class EdgeObserver():
         obst_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/obstacle_range')
         clear_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/raytrace_range')
 
-        return min(obst_range, clear_range)
+        # return min(obst_range, clear_range)
+        # in general obstacle_range > clear_range
+        # Rationale: even if it's not entirely accurate, if an obstacle is large enough to
+        # block an edge, then accuracy doesn't really matter. At this range map is good
+        # enough to determine if edge is blocked or not.
+        return obst_range 
 
     def edge_updater(self):
         # publishes to edge_state
@@ -146,7 +152,6 @@ class EdgeObserver():
             return TGraph.UNBLOCKED
         elif self.vprev == v and u_is_visible:
             return TGraph.UNBLOCKED
-
         (startx, starty) = self.base_graph.pos(u)
         (goalx, goaly) = self.base_graph.pos(v)
 
@@ -172,7 +177,6 @@ class EdgeObserver():
             return TGraph.BLOCKED
 
         rospy.loginfo("Path FOUND!")
-
         return TGraph.UNKNOWN
 
     def set_visibility_polygon(self):
@@ -246,13 +250,6 @@ class EdgeObserver():
 
     def point_to_tuple(self, point):
         return "({:.2f},{:.2f})".format(point.x, point.y)
-    """
-    def reset_graph_service(self, req):
-        # req is empty, just triggers this service
-        self.curr_graph = copy(self.base_graph) 
-        rospy.loginfo('Reset graph')
-        return {}
-    """
 
 class SubMap():
     # ASSUMES POLYGON IS BOX!!! Cannot deal with other shaped polygons
@@ -294,21 +291,21 @@ class SubMap():
 
         self.width = rightpx - leftpx + 1
         self.height = botpx - toppx + 1
-        self.grid = np.empty((self.height, self.width))
+        self.grid = np.zeros((self.height, self.width))
 
         # fill in rows of grid
         for row in range(toppx, botpx + 1):
             try:
-                self.grid[(row - toppx), :] = costmap.data[(row*map_width + 
-                                                            leftpx):(row*map_width +
-                                                                     rightpx + 1)]
+                self.grid[(row - toppx), :] = costmap.data[(row*map_width +
+                                                             leftpx):(row*map_width +
+                                                                      rightpx + 1)]
             except ValueError, e:
-                # fill in with unblocked 
-                self.grid[(row - toppx), :] = np.zeros(self.width)
+                # fill in with unblocked
                 rospy.logwarn("{}".format(e))
-                rospy.logwarn("row: {}, map_width: {}, map_height: {}".format(row,
-                                                                              map_width,
-                                                                              map_height))
+                rospy.logwarn("row: {}, map_width: {}, map_height: {}"
+                              .format(row, map_width, map_height))
+
+        rospy.loginfo("created submap")
 
     def in_bounds(self, cell):
         (row, col) = cell
@@ -321,7 +318,7 @@ class SubMap():
         (row, col) = cell
         
         if not self.in_bounds(cell): return False
-        elif self.grid[row,col] >= 99: return False
+        elif self.grid[row,col] >= LETHAL: return False
         else: return True
 
     def cell(self, x, y):
@@ -382,7 +379,6 @@ class SubMap():
         if not (self.passable(cell1) and self.passable(cell2)): return float('inf')
 
         return util.euclidean_distance(cell1, cell2)
-
 
 if __name__ == '__main__':
     rospack = rospkg.RosPack()

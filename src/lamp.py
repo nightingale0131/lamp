@@ -44,7 +44,7 @@ class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
         # seq - list of vertices [v1, v2, ...]
         # base_map is map type
-        rospy.init_node('move_base_seq')
+        rospy.init_node('lamp')
 
         self.base_graph = base_graph
         self.poly_dict = polygon_dict
