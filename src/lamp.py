@@ -34,7 +34,7 @@ PKGDIR = rospkg.RosPack().get_path('policy')
 # MAP = 'tristan_maze'
 MAP = 'test_large'
 
-RESULTSFILE = PKGDIR + "/results/" + MAP + "/lrpp_results.dat"
+RESULTSFILE = PKGDIR + "/results/lrpp_results.dat"
 PADDING = 1 # how much to inflate convex region by (to allow for small localization
             #   variations, must be greater than TOL
 TOL = 0.5 # tolerance from waypoint before moving to next waypoint
