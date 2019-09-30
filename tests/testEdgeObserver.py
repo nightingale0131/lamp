@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+OBSOLETE - needs to be updated
+"""
 
 import rospy
 from geometry_msgs.msg import Point, Polygon, box
