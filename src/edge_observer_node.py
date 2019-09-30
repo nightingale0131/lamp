@@ -117,7 +117,7 @@ class EdgeObserver():
                 dist_to_v = util.euclidean_distance(self.base_graph.pos(v),
                                                     self.robot_pose)
 
-                edge_in_range = ((dist_to_u <= self.robot_range) and 
+                edge_in_range = ((dist_to_u <= self.robot_range) or 
                                  (dist_to_v <= self.robot_range))
 
                 edge_in_submap = (self.curr_submap == self.base_graph.get_polygon(u,v))
