@@ -87,7 +87,7 @@ class LRPP():
         self.start_task("policy")
         rospy.spin()
 
-    def start_task(self, mode):
+    def start_task(self, mode, redo=False):
         rospy.loginfo("Starting task {} in {} mode".format(self.tcount, mode))
         self.mode = mode
         self.check_mode()
@@ -100,7 +100,7 @@ class LRPP():
 
         if mode == "policy":
             rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
-            self.p = update_p_est(self.M, self.tcount) 
+            self.p = mf.update_p_est(self.M, self.tcount) 
             self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
             rospy.loginfo(self.policy[0].print_policy())
 
@@ -145,7 +145,7 @@ class LRPP():
         self.set_amcl_pose() # Set initial guess for amcl back to start 
 
         # Set up any obstacles if starting a new task
-        if mode == "policy":
+        if mode == "policy" and redo == False:
             self.del_cmd = spawn_obstacles()
 
         # wait for input before sending goals to move_base
@@ -188,6 +188,13 @@ class LRPP():
             # unsubscribe from plan and map
             self.plan_subscriber.unregister()
             self.edge_subscriber.unregister()
+
+        if err == True:
+            # retry the task
+            rospy.info("ERROR ENCOUNTERED, RESTARTING TASK {} EXECUTION FOR {}"
+                    .format(self.tcount, self.mode))
+            self.start_task(self.mode, redo=True)
+            return
 
         if self.mode == "policy":
             next_mode = "openloop"
@@ -247,11 +254,8 @@ class LRPP():
             if self.tcount == self.T + 1:
                 self.shutdown()
 
-        if err == True:
-            f.write("    UNEXPECTED ERROR")
-
-        if self.localization_err == True:
-            f.write("    LOCALIZATION ERROR")
+        # if self.localization_err == True:
+            # f.write("    LOCALIZATION ERROR")
 
         f.close()
         self.start_task(next_mode)
@@ -689,19 +693,6 @@ def to_2d_path(rospath):
                      stamped_pose.pose.position.y))
 
     return path
-
-def update_p_est(M,t):
-    """ Return updated estimated prob distribution
-        M = list of maps
-        t = total number of tasks so far (+1 b/c of base_graph)
-    """
-    p = []
-    for m in M:
-        n = m.n # number of times this map has been encountered
-        prob = float(n)/t
-        p.append(prob)
-
-    return p
 
 if __name__ == '__main__':
     # load nxgraph and polygon information
