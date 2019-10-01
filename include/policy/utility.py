@@ -18,6 +18,7 @@ import sys, os, glob
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import networkx as nx
 
 from priority_queue import PriorityQueue
 
@@ -79,6 +80,35 @@ def get_origin_and_res_from_yaml(path):
     else:
         logger.error("Failed to get data")
 
+def import_node_info(filepath):
+    '''
+    Assuming file with this format:
+        node   weight   edge state in M1    edge state in M2 ....
+    '''
+    M = []
+
+    with open(filepath, 'rb') as graphfile:
+        for line in graphfile:
+            if line[0] == '(':
+                end_bracket = line.find(')')
+                edge_string = line[1:end_bracket]
+                (u,v) = get_coordinates(edge_string, sep=', ')
+
+                parts = line[end_bracket+1:].split()
+
+                weight = float(parts[0])
+                states = parts[1:]
+
+                if M == []:
+                    nmaps = len(states)
+                    for m in range(nmaps):
+                        M.append(nx.Graph())
+
+                for i,g in enumerate(M):
+                    state = states[i]
+                    g.add_edge(u,v, weight=weight, state=int(state))
+    return M
+
 def isclose(a,b,rel_tol=1e-09, abs_tol=0.0):
     # Compares equality of two floats
     # implementation provided in python documentation
@@ -108,10 +138,11 @@ def calc_path_distance(path, base_graph):
 
     return distance
 
-def get_coordinates(string):
+def get_coordinates(string, sep=' '):
     """ Assumes string is in "x y" format
     """
-    coordinates = [int(c) for c in string.split()]
+    clean = [c.strip('\'') for c in string.split(sep)]
+    coordinates = [int(c) if c.isdigit() else c for c in clean]
     return tuple(coordinates[:2])
 
 def euclidean_distance(a, b):

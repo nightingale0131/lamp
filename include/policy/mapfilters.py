@@ -11,6 +11,19 @@ logger = logging.getLogger(__name__)
 
 import networkx as nx
 
+def update_p_est(M,t):
+    """ Return updated estimated prob distribution
+        M = list of maps
+        t = total number of tasks so far (+1 b/c of base_graph)
+    """
+    p = []
+    for m in M:
+        n = m.n # number of times this map has been encountered
+        prob = float(n)/t
+        p.append(prob)
+
+    return p
+
 def filter1(supermaps, new_map):
     """
     This filter only merges maps with the first encountered agreeing map, provided it is
@@ -42,14 +55,14 @@ def filter1(supermaps, new_map):
     if not agree_once:
         # no maps were in agreement, add new map to supermaps
         supermaps.append(new_map)
-        print("Added new map")
+        logger.info("Added new map")
     elif map_merge != None:
         # merge
-        print("Merging to map {}".format(n_map_merge))
+        logger.info("Merging to map {}".format(n_map_merge))
         logger.info(new_info)
         map_merge.updateG(update)
     else:
-        print("No map added")
+        logger.info("No map added")
 
     return supermaps
 
