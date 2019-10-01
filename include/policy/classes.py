@@ -71,6 +71,9 @@ class Observation(object):
         self.E=feature  # feature to be observed
         self.outcomes = [] # should be type outcome
 
+    def __str__(self):
+        return "e: {}, #outcomes: {}".format(self.E, len(self.outcomes))
+
 class Outcome(object):
     """ an outcome """
     def __init__(self,state=None,Yo=[],p=0):
