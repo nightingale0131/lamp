@@ -50,13 +50,20 @@ def spawn_obstacles():
         del_cmd += temp_del
 
     if random.random() < i_prob: 
-        x_pos = 18.12
+        x_pos1 = 18.424
+        x_pos2 = 17.198
         y_pos = random.random()*6.0 + 9.0
-        cmd += ("rosrun gazebo_ros spawn_model -database dumpster" + 
-                " -gazebo -model dumpster_i -x " + str(x_pos) + 
-                ' -y ' + str(y_pos) + " -Y 1.8\n")
-        del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_i\n'
-        avoid_set.append((x_pos,y_pos))
+        cmd += ("rosrun gazebo_ros spawn_model " + 
+                "-database drc_practice_orange_jersey_barrier " + 
+                "-gazebo -model block_i_1 -x " + str(x_pos1) + 
+                " -y " + str(y_pos) + " -Y 1.571\n")
+        cmd += ("rosrun gazebo_ros spawn_model " + 
+                "-database drc_practice_blue_cylinder " +
+                "-gazebo -model block_i_2 -x " + str(x_pos2) +
+                " -y " + str(y_pos) + "\n")
+        del_cmd += ('rosservice call gazebo/delete_model block_i_1\n' + 
+                'rosservice call gazebo/delete_model block_i_2\n')
+        avoid_set.extend([(x_pos1,y_pos), (x_pos2,y_pos)])
 
     if random.random() < ii_prob: 
         x_pos1 = 15.067
