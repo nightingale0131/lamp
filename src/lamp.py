@@ -191,7 +191,7 @@ class LRPP():
 
         if err == True:
             # retry the task
-            rospy.info("ERROR ENCOUNTERED, RESTARTING TASK {} EXECUTION FOR {}"
+            rospy.loginfo("ERROR ENCOUNTERED, RESTARTING TASK {} EXECUTION FOR {}"
                     .format(self.tcount, self.mode))
             self.start_task(self.mode, redo=True)
             return
@@ -382,6 +382,7 @@ class LRPP():
                 self.finish_task()
             else:
                 # robot might be stuck, try sending goal again
+                rospy.logwarn("Resending goal...")
                 self.set_and_send_next_goal()
             return
 
