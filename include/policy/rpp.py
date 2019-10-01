@@ -194,16 +194,31 @@ def solve_RPP(M, p, features, start, goal):
                 (min_o, min_u, min_cost) = minO
                 logger.info("MinO: ({}, {})".format(min_o.E, min_u))
 
+                (u1, u2) = min_o.E # assuming feature is an edge
+                if u1 == min_u: unblocked_u = u2
+                elif u2 == min_u: unblocked_u = u1
+                else: 
+                    raise Exception("min_u ({}) is neither u1 ({}) or u2 ({})!"
+                        .format(min_u, u1, u2))
+
                 minObservation = deepcopy(min_o)
 
                 # set node observation, state, and path
                 new_node.add_leg(min_u,minObservation,c_knownG.paths[min_u])
 
                 # Add new children nodes and add those to the queue
+                # For LAMP, there's only two possible outcomes: blocked/unblocked
                 for outcome in min_o.outcomes:
                     policy.append(Node(outcome.new_belief()))
                     new_node.add_outcome(policy[-1])
-                    Q.append((outcome.new_belief(),min_u,policy[-1]))
+
+                    if outcome.state == base_map.G.BLOCKED:
+                        # starting vertex is beginning of edge
+                        Q.append((outcome.new_belief(),min_u,policy[-1]))
+                    elif outcome.state == base_map.G.UNBLOCKED:
+                        Q.append((outcome.new_belief(),unblocked_u,policy[-1]))
+                    else:
+                        raise Exception("State of outcome is not blocked or unblocked!")
 
     return policy
 
@@ -262,11 +277,12 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
 
     # determine which vertices are reachable (eq 9)-----------------------------
     logger.info('Checking reachable vertices with eqn 9...')
-    reachable_v = {}  # dict: {v: cost_v, u: cost_u,...}
+    reachable = {}  # dict: {v: cost_to_v, u: cost_to_u,...}
+    expected_cost = {} # dict: {v: expected_cost_to_goal, ...}
 
     for v in supermaps[0].G.vertices():
         # calculate expected cost
-        expected_cost = 0
+        exp_cost_to_goal_from_v = 0
         for i in belief:
             # nx.dijkstra doesn't return nodes in clusters that are disconnected
             # so if it's not in get_cost, then just set cost_to_goal as infinity (temp
@@ -276,41 +292,41 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
             except KeyError:
                 cost_to_goal = float('inf')
             if cost_to_goal < float('inf'):
-                # is this still a valid assumption? In LRPP, the cost is not zero
-                # if it is a no goal, it has to check via reactive planner, so
-                # it's actually very expensive.
-                # Does it make sense to ignore the cost of a no goal when
-                # calculating the policy? I think so, if there is a supermap with
-                # no possible path to goal, it'll just inflate the cost of EVERY
-                # observation in constrO. Unless I can somehow calculate the
-                # actual cost of the reactive planner to determine no goal, then I
-                # can pick better observations to minimize that path
-                expected_cost += cost_to_goal*p_Xy[i]
+                '''
+                In RPP, the robot will stop at the observation once it believes there is
+                no path to goal, but in LRPP, since we do not know all possible environment
+                configurations, if the policy determines there is no path to
+                goal, the robot still has to exhaustively check every possible path to
+                goal.
 
+                Does it make sense to ignore the cost of a no goal when
+                calculating the policy? 
+                I think so, if there is a supermap with
+                no possible path to goal, it'll just inflate the cost of EVERY
+                observation in constrO. Unless I can somehow calculate the
+                actual cost of the reactive planner to determine no goal, then I
+                can pick better observations to minimize that path
+                '''
+                exp_cost_to_goal_from_v += cost_to_goal*p_Xy[i]
+
+        expected_cost[v] = exp_cost_to_goal_from_v
+
+        # determine reachable vertices
         try:
             cost_to_v = c_knownG.cost[v]
         except KeyError:
             cost_to_v = float('inf') # same issue as line 266
 
-        cost_v = cost_to_v + expected_cost
+        if cost_to_v != float('inf'): reachable[v] = cost_to_v
 
-        logger.debug("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
-                .format(c_knownG.cost[goal], v, cost_v))
-        if cost_v == float('inf'): continue # v is not reachable if cost is infinite
-        if c_knownG.cost[goal] == float('inf'):
-            # need this because isclose(inf, 10) returns True
-            # to reach this point cost_v must be a finite number
-            reachable_v[v] = cost_v
-        elif c_knownG.cost[goal] > cost_v and not isclose(c_knownG.cost[goal], cost_v):
-            reachable_v[v]= cost_v
-
-    logger.debug('reachable_v = {}'.format(reachable_v))
+    logger.debug('reachable v = {}'.format(reachable))
 
     # combine the two to decide which (e,u) pairs are feasible.
     # if e in (e,u) isn't visible for ALL maps in the belief
-    #    (e,u) is not feasible
+    #    then (e,u) is not feasible
     R=[] # list of constructive and reachable observations: (O, v)
-    for v, cost_v in reachable_v.items():
+    D={} # dict of expected travel cost of observation where we go to v first
+    for v, cost_v in reachable.items():
         for o in constrO:
             is_viewable = True 
 
@@ -325,7 +341,35 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
                     is_viewable = False
                     break
 
-            if is_viewable: R.append((o,v))
+            if is_viewable:
+                (u1,u2) = o.E
+                edge_cost = supermaps[0].G.weight(u1,u2)
+                if u1 == v:
+                    start_u = u1
+                    end_u = u2
+                elif u2 == v:
+                    start_u = u2
+                    end_u = u1
 
+                for outcome in o.outcomes:
+                    if outcome.state == supermaps[0].G.BLOCKED:
+                        blocked_p = outcome.p 
+                    elif outcome.state == supermaps[0].G.UNBLOCKED:
+                        unblocked_p = outcome.p
+
+                travel_cost = (reachable[v] + blocked_p*expected_cost[start_u] +
+                        unblocked_p*(expected_cost[end_u] + edge_cost)) 
+
+                logger.debug("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
+                        .format(c_knownG.cost[goal], v, travel_cost))
+                if (c_knownG.cost[goal] == float('inf') or 
+                        (c_knownG.cost[goal] > travel_cost and not 
+                        isclose(c_knownG.cost[goal], travel_cost))):
+                    # need this because isclose(inf, 10) returns True
+                    # to reach this point cost_v must be a finite number
+                    R.append((o,v))
+                    D[v] = travel_cost 
+
+    logger.debug('D = {}'.format(D))
     logger.info("Completed calculating set of constructive and reachable obsv pairs!")
-    return R, reachable_v
+    return R, D
