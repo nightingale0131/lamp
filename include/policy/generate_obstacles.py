@@ -59,12 +59,12 @@ def spawn_obstacles():
         avoid_set.append((x_pos,y_pos))
 
     if random.random() < ii_prob: 
-        x_pos1 = 15.150
-        x_pos2 = 13.106 
+        x_pos1 = 15.067
+        x_pos2 = 12.918
         y_pos = random.random()*5.0 + 10.0
         cmd += ("rosrun gazebo_ros spawn_model -database dumpster" + 
                 " -gazebo -model dumpster_ii_1 -x " + str(x_pos1) + 
-                ' -y ' + str(y_pos) + " -Y -1.186\n" + 
+                ' -y ' + str(y_pos) + " -Y 0\n" + 
                 "rosrun gazebo_ros spawn_model -database dumpster" + 
                 " -gazebo -model dumpster_ii_2 -x " + str(x_pos2) + 
                 ' -y ' + str(y_pos) + ' -Y 1.570796\n')
