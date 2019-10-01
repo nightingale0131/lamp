@@ -79,12 +79,15 @@ class EdgeObserver():
         if self.vprev != u or self.vnext != v:
             self.vprev = u
             self.vnext = v
+            old_submap = self.curr_submap
 
             if self.vprev != self.vnext:
-                # reset the 'visible' portals/vertices when curr_submap changes
-                rospy.loginfo("Changed submaps, resetting list of visible vertices")
                 self.curr_submap = self.base_graph.get_polygon(self.vprev, self.vnext)
-                self.vis_v_in_submap = set()
+
+                # reset the 'visible' portals/vertices when curr_submap changes
+                if self.curr_submap != old_submap:
+                    rospy.loginfo("Changed submaps, resetting list of visible vertices")
+                    self.vis_v_in_submap = set()
 
     def get_robot_range(self):
         # select range of robot's sensors, set by move_base parameters
