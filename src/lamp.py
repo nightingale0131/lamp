@@ -349,7 +349,9 @@ class LRPP():
         if self.node != None and self.node.opair != None:
             (u,v) = self.node.opair.E 
             state = self.curr_graph.edge_state(u,v)
-            if  state != self.base_map.G.UNKNOWN and (self.vprev == u or self.vprev == v):
+            curr_poly = self.curr_graph.get_polygon(self.vprev, self.vnext)
+            obsv_poly = self.curr_graph.get_polygon(u,v)
+            if state != self.base_map.G.UNKNOWN and curr_poly == obsv_poly:
                 if state == self.base_map.G.UNBLOCKED: 
                     rospy.loginfo("Edge ({},{}) is UNBLOCKED! Moving to next node...".format(u,v))
                 else: 
