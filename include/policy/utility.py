@@ -105,8 +105,11 @@ def import_node_info(filepath):
                         M.append(nx.Graph())
 
                 for i,g in enumerate(M):
-                    state = states[i]
-                    g.add_edge(u,v, weight=weight, state=int(state))
+                    state = int(states[i])
+                    if state == 1:
+                        g.add_edge(u,v, weight=float('inf'), state=int(state))
+                    else:
+                        g.add_edge(u,v, weight=weight, state=int(state))
     return M
 
 def isclose(a,b,rel_tol=1e-09, abs_tol=0.0):

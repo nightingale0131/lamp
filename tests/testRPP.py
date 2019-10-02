@@ -41,9 +41,16 @@ if __name__ == '__main__':
 
         logger.info(line)
 
+    '''
+    # check costs
+    logger.debug("Printing cost to goal...")
+    logger.debug(maps[1]._cost['g'].cost)
+    logger.debug(maps[1]._cost['g'].paths)
+
+    '''
     # some modifications to probabilities
-    maps[0].n = 2
-    p = mf.update_p_est(maps, 5) # update prob estimation
+    maps[0].n = 1
+    p = mf.update_p_est(maps, 4) # update prob estimation
 
     features = maps[0].features()
     policy = rpp.solve_RPP(maps, p, features, 's', 'g')

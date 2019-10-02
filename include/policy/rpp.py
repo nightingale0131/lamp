@@ -136,7 +136,7 @@ def solve_RPP(M, p, features, start, goal):
             R, D = useful_features( features, M, p_Xy, c_knownG, Y, goal )
             # R - [(O1,v1), (O2, v2), ...]
             # D - {v1: cost_v1, v2: cost_v2, ...}
-            logger.info('R = {}'.format(R))
+            logger.debug('R = {}'.format(str(R)))
 
             # find minO -------------------------------------------------------
             logger.info("Finding minO...")
@@ -180,7 +180,8 @@ def solve_RPP(M, p, features, start, goal):
 
                     H = -H
                     score = D[v]*H
-                    logger.info('Entropy: {:.4f}  Score: {:.4f}'.format(H,score))
+                    logger.info('({},{})  Entropy: {:.4f}  Score: {:.4f}'
+                            .format(obsv.E, v, H,score))
                     if score < minScore:
                         minScore = score
                         minO = (obsv, v, D[v])
@@ -278,39 +279,8 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
     # determine which vertices are reachable (eq 9)-----------------------------
     logger.info('Checking reachable vertices with eqn 9...')
     reachable = {}  # dict: {v: cost_to_v, u: cost_to_u,...}
-    expected_cost = {} # dict: {v: expected_cost_to_goal, ...}
 
     for v in supermaps[0].G.vertices():
-        # calculate expected cost
-        exp_cost_to_goal_from_v = 0
-        for i in belief:
-            # nx.dijkstra doesn't return nodes in clusters that are disconnected
-            # so if it's not in get_cost, then just set cost_to_goal as infinity (temp
-            # workaround, hopefully there's a better solution
-            try:
-                cost_to_goal = supermaps[i].get_cost(goal, v)
-            except KeyError:
-                cost_to_goal = float('inf')
-            if cost_to_goal < float('inf'):
-                '''
-                In RPP, the robot will stop at the observation once it believes there is
-                no path to goal, but in LRPP, since we do not know all possible environment
-                configurations, if the policy determines there is no path to
-                goal, the robot still has to exhaustively check every possible path to
-                goal.
-
-                Does it make sense to ignore the cost of a no goal when
-                calculating the policy? 
-                I think so, if there is a supermap with
-                no possible path to goal, it'll just inflate the cost of EVERY
-                observation in constrO. Unless I can somehow calculate the
-                actual cost of the reactive planner to determine no goal, then I
-                can pick better observations to minimize that path
-                '''
-                exp_cost_to_goal_from_v += cost_to_goal*p_Xy[i]
-
-        expected_cost[v] = exp_cost_to_goal_from_v
-
         # determine reachable vertices
         try:
             cost_to_v = c_knownG.cost[v]
@@ -319,7 +289,7 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
 
         if cost_to_v != float('inf'): reachable[v] = cost_to_v
 
-    logger.debug('reachable v = {}'.format(reachable))
+    logger.info('reachable v = {}'.format(reachable))
 
     # combine the two to decide which (e,u) pairs are feasible.
     # if e in (e,u) isn't visible for ALL maps in the belief
@@ -351,16 +321,23 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
                     start_u = u2
                     end_u = u1
 
+                # currently it's only possible to have 2 outcomes
                 for outcome in o.outcomes:
                     if outcome.state == supermaps[0].G.BLOCKED:
                         blocked_p = outcome.p 
+                        blocked_exp_cost = expected_cost(goal, start_u,
+                                outcome.new_belief, supermaps, p_Xy) 
+                        # calc expected cost from start_u
                     elif outcome.state == supermaps[0].G.UNBLOCKED:
                         unblocked_p = outcome.p
+                        # calc expected cost from end_u
+                        unblocked_exp_cost = expected_cost(goal, start_u,
+                                outcome.new_belief, supermaps, p_Xy) 
 
-                travel_cost = (reachable[v] + blocked_p*expected_cost[start_u] +
-                        unblocked_p*(expected_cost[end_u] + edge_cost)) 
+                travel_cost = (reachable[v] + blocked_p*blocked_exp_cost +
+                        unblocked_p*(unblocked_exp_cost + edge_cost))
 
-                logger.debug("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
+                logger.info("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
                         .format(c_knownG.cost[goal], v, travel_cost))
                 if (c_knownG.cost[goal] == float('inf') or 
                         (c_knownG.cost[goal] > travel_cost and not 
@@ -373,3 +350,33 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
     logger.debug('D = {}'.format(D))
     logger.info("Completed calculating set of constructive and reachable obsv pairs!")
     return R, D
+
+def expected_cost(u, v, belief, supermaps, p_Xy):
+    exp_cost = 0
+    for i in belief:
+        # nx.dijkstra doesn't return nodes in clusters that are disconnected
+        # so if it's not in get_cost, then just set cost_to_goal as infinity (temp
+        # workaround, hopefully there's a better solution
+        try:
+            cost_in_i = supermaps[i].get_cost(u, v)
+        except KeyError:
+            cost_in_i = float('inf')
+        if cost_in_i < float('inf'):
+            '''
+            In RPP, the robot will stop at the observation once it believes there is
+            no path to goal, but in LRPP, since we do not know all possible environment
+            configurations, if the policy determines there is no path to
+            goal, the robot still has to exhaustively check every possible path to
+            goal.
+
+            Does it make sense to ignore the cost of a no goal when
+            calculating the policy? 
+            I think so, if there is a supermap with
+            no possible path to goal, it'll just inflate the cost of EVERY
+            observation in constrO. Unless I can somehow calculate the
+            actual cost of the reactive planner to determine no goal, then I
+            can pick better observations to minimize that path
+            '''
+            exp_cost += cost_in_i*p_Xy[i]
+
+
