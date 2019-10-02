@@ -199,16 +199,18 @@ class LRPP():
         if self.mode == "policy":
             next_mode = "openloop"
             # run map filter
-            self.save_map_and_filter()
+            info = self.save_map_and_filter()
 
             # write
             f.write("\nFinished executing task {}".format(self.tcount))
             f.write("\nEntered openloop: {}".format(self.entered_openloop))
 
             f.write(self.policy[0].print_policy())
+            f.write("\n\nMap agreed with: {}, Map merge: {}"
+                    .format(info['agree'], info['merged']))
 
             # print states
-            f.write("\n\n Map states")
+            f.write("\nMap states")
             for edge in self.base_graph.edges():
                 line = "\n{:<10}".format(edge) 
                 u,v = edge
@@ -281,10 +283,12 @@ class LRPP():
         new_map = Map(copy(self.curr_graph))
 
         # now do comparisons and map merging??
-        self.M = mf.filter1(self.M, new_map)
+        self.M, info = mf.filter1(self.M, new_map)
 
         # do no comparisons and just save the new map lol
         # self.M.append(new_map)
+
+        return info
 
     def shutdown(self):
         # print maps
@@ -710,7 +714,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     # set number of tasks
-    ntasks = 10
+    ntasks = 20
 
     # run LRPP
     try:

@@ -36,11 +36,13 @@ def filter1(supermaps, new_map):
     agree_once = False # flag to indicate if new_map agrees w/ any stored maps
     map_merge = None
     update = {}
+    info = {'agree': [], 'merged': None} # dictionary for storing info to write in file later
 
     for i,m in enumerate(supermaps):
         in_agreement, new_info = m.agrees_with(new_map)
         if in_agreement:
             m.n += 1
+            info['agree'].append(i)
             logger.info("New map agrees with supermap {}".format(i))
 
             if (new_info != {} and agree_once == False):
@@ -61,8 +63,9 @@ def filter1(supermaps, new_map):
         logger.info("Merging to map {}".format(n_map_merge))
         logger.info(new_info)
         map_merge.updateG(update)
+        info['merged'] = n_map_merge
     else:
         logger.info("No map added")
 
-    return supermaps
+    return supermaps, info
 
