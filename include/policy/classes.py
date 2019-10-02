@@ -33,7 +33,7 @@ class Node(object):
         self.children.append(node)
         """ belief of the new node must match one of the world outcomes of the observation
         """
-    def print_policy(self):
+    def print_policy(self, depth=0):
         """ Prints tree starting with 'self' as the root 
             Goes root, left, right 
         """
@@ -43,10 +43,15 @@ class Node(object):
             # if there's no observation assigned, set to None
             feature = None
 
-        # print('{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path))
-        msg = '\n{:>8}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path)
+        # variable spacing
+        w1 = str(5 + depth*2)
+        w2 = str(20 - depth*2)
+
+        # msg = '\n{:>5}: {:20}   {:20}    {}'.format(self.s, feature, self.Y, self.path)
+        msg = ("\n{:>{w1}}: {:{w2}}   {:20}    {}"
+                .format(self.s, feature, self.Y, self.path, w1=w1, w2=w2))
         for node in self.children:
-            msg += node.print_policy()
+            msg += node.print_policy(depth=depth+1)
 
         return msg
 
