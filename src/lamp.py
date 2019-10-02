@@ -299,6 +299,10 @@ class LRPP():
             self.vprev = self.path[self.goal_cnt - 1]
         self.vnext = self.path[self.goal_cnt]
 
+        # Now robot is fully done replanning and is on its way to next destination, so
+        # reset path_blocked flag
+        self.path_blocked = False
+
     def feedback_cb(self, feedback):
         # print current pose at each feedback
         # feedback is MoveBaseFeedback type msg
@@ -590,7 +594,7 @@ class LRPP():
 
         self.set_new_path(path)
         self.set_and_send_next_goal()
-        self.path_blocked = False
+        # self.path_blocked = False
 
     def edge_callback(self, data):
         # updates edges
