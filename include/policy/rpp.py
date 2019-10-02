@@ -326,13 +326,13 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
                     if outcome.state == supermaps[0].G.BLOCKED:
                         blocked_p = outcome.p 
                         blocked_exp_cost = expected_cost(goal, start_u,
-                                outcome.new_belief, supermaps, p_Xy) 
+                                outcome, supermaps, p_Xy) 
                         # calc expected cost from start_u
                     elif outcome.state == supermaps[0].G.UNBLOCKED:
                         unblocked_p = outcome.p
                         # calc expected cost from end_u
-                        unblocked_exp_cost = expected_cost(goal, start_u,
-                                outcome.new_belief, supermaps, p_Xy) 
+                        unblocked_exp_cost = expected_cost(goal, end_u,
+                                outcome, supermaps, p_Xy) 
 
                 travel_cost = (reachable[v] + blocked_p*blocked_exp_cost +
                         unblocked_p*(unblocked_exp_cost + edge_cost))
@@ -351,9 +351,9 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
     logger.info("Completed calculating set of constructive and reachable obsv pairs!")
     return R, D
 
-def expected_cost(u, v, belief, supermaps, p_Xy):
+def expected_cost(u, v, outcome, supermaps, p_Xy):
     exp_cost = 0
-    for i in belief:
+    for i in outcome.Yo:
         # nx.dijkstra doesn't return nodes in clusters that are disconnected
         # so if it's not in get_cost, then just set cost_to_goal as infinity (temp
         # workaround, hopefully there's a better solution
@@ -377,6 +377,18 @@ def expected_cost(u, v, belief, supermaps, p_Xy):
             actual cost of the reactive planner to determine no goal, then I
             can pick better observations to minimize that path
             '''
+            logger.debug("cost_in_{}={:.2f}".format(i, cost_in_i))
+            exp_cost += cost_in_i*p_Xy[i]/outcome.p
+
+    for i in outcome.unknown:
+        try:
+            cost_in_i = supermaps[i].get_cost(u, v)
+        except KeyError:
+            cost_in_i = float('inf')
+        if cost_in_i < float('inf'):
+            logger.debug("cost_in_{}={:.2f}".format(i, cost_in_i))
             exp_cost += cost_in_i*p_Xy[i]
 
+    logger.debug("exp_cost from {} to {}: {:.2f}".format(u,v,exp_cost))
 
+    return exp_cost
