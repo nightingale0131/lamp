@@ -610,9 +610,10 @@ class LRPP():
         v = data.v
         if v.isdigit(): v = int(v)
 
-        old_edge_weight =  self.curr_graph.weight(u, v)
-        new_edge_weight = util.moving_average(old_edge_weight, data.weight)
-        self.curr_graph.set_edge_weight(u,v,new_edge_weight)
+        if data.weight >= 0:
+            old_edge_weight =  self.curr_graph.weight(u, v)
+            new_edge_weight = util.moving_average(old_edge_weight, data.weight)
+            self.curr_graph.set_edge_weight(u,v,new_edge_weight)
 
         if data.state != self.base_map.G.UNKNOWN:
             self.curr_graph.set_edge_state(u,v,data.state)
@@ -721,7 +722,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     # set number of tasks
-    ntasks = 20
+    ntasks = 5
 
     # run LRPP
     try:

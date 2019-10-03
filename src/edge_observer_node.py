@@ -150,11 +150,11 @@ class EdgeObserver():
         # otherwise search for path
 
         if u_is_visible and v_is_visible:
-            return TGraph.UNBLOCKED
+            return TGraph.UNBLOCKED, -1
         elif self.vprev == u and v_is_visible:
-            return TGraph.UNBLOCKED
+            return TGraph.UNBLOCKED, -1
         elif self.vprev == v and u_is_visible:
-            return TGraph.UNBLOCKED
+            return TGraph.UNBLOCKED, -1
         (startx, starty) = self.base_graph.pos(u)
         (goalx, goaly) = self.base_graph.pos(v)
 
