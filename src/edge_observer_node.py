@@ -167,7 +167,7 @@ class EdgeObserver():
         # TODO: check if area around start or goal is not completely occupied
         if not (submap.passable(startpx) and submap.passable(goalpx)):
             rospy.loginfo("No path found because start or goal not valid!")
-            return TGraph.BLOCKED, float('inf')
+            return TGraph.BLOCKED, -1
 
         # see if A* returns a valid path
         came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
@@ -178,7 +178,7 @@ class EdgeObserver():
             path_length = len(path)*submap.res
         except KeyError:
             rospy.loginfo("Path NOT FOUND!")
-            return TGraph.BLOCKED, float('inf')
+            return TGraph.BLOCKED, -1
 
         rospy.loginfo("Path FOUND!")
         return TGraph.UNKNOWN, path_length 

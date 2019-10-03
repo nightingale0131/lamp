@@ -619,6 +619,7 @@ class LRPP():
             self.curr_graph.set_edge_state(u,v,data.state)
 
         if data.state == self.base_map.G.BLOCKED:
+            self.curr_graph.set_edge_weight(u,v,float('inf'))
 
             # if robot is not already replanning and the blocked edge is not under observation, 
             if not (self.path_blocked or self.edge_under_observation(u,v)):
