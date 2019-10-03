@@ -28,15 +28,20 @@ def update_p_est(M,t):
 
 def update_weights(supermaps, new_map):
     new_G = copy(new_map.G) # in case new_map was added to supermaps
+    base_map = supermaps[0]
+    for (u,v) in base_map.G.edges():
+        if new_G.edge_state(u,v) == new_G.UNBLOCKED:
+            old_weight = base_map.G.weight(u,v)
+            new_weight = util.moving_average(old_weight, new_G.weight(u,v))
+            base_map.G.set_edge_weight(u,v,new_weight)
+            logger.debug("Modifying edge ({},{}): {:.2f} -> {:.2f}"
+                  .format(u,v,old_weight, new_weight))
+
+        for m in supermaps[1:]:
+            if m.G.edge_state(u,v) != m.G.BLOCKED:
+                m.G.set_edge_weight(u,v,base_map.G.weight(u,v))
+
     for m in supermaps:
-        for (u,v) in m.G.edges():
-            if (new_G.weight(u,v) != float('inf') and 
-                new_G.edge_state(u,v) == new_G.UNBLOCKED):
-                old_weight = m.G.weight(u,v)
-                new_weight = util.moving_average(old_weight, new_G.weight(u,v))
-                m.G.set_edge_weight(u,v,new_weight)
-                logger.debug("Modifying edge ({},{}): {:.2f} -> {:.2f}"
-                      .format(u,v,old_weight, new_weight))
         m.update_cost(m.G.goal)
 
     return supermaps

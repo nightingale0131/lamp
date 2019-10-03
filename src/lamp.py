@@ -37,7 +37,7 @@ MAP = 'test_large'
 RESULTSFILE = PKGDIR + "/results/lrpp_results.dat"
 PADDING = 1 # how much to inflate convex region by (to allow for small localization
             #   variations, must be greater than TOL
-TOL = 0.5 # tolerance from waypoint before moving to next waypoint
+TOL = 0.5 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 5 # number of retries on naive mode before giving up execution
 
 class LRPP():
@@ -150,12 +150,11 @@ class LRPP():
 
         self.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
         rospy.sleep(1)
+        self.set_amcl_pose() # Set initial guess for amcl back to start
 
         # Set up any obstacles if starting a new task
         if mode == "policy" and redo == False:
             self.del_cmd = spawn_obstacles()
-
-        self.set_amcl_pose() # Set initial guess for amcl back to start 
 
         rospy.loginfo("Finished environment setup. Clearing cost map...")
         rospy.sleep(5)
@@ -226,6 +225,7 @@ class LRPP():
 
                 f.write(line)
 
+            '''
             # print weights
             f.write("\n\n Map weights")
             for edge in self.base_graph.edges():
@@ -235,6 +235,7 @@ class LRPP():
                     line += "{:8.3f}".format(m.G.weight(u,v))
 
                 f.write(line)
+            '''
 
             f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
             f.write("\nPolicy      {:9.3f}               {}"
@@ -318,7 +319,6 @@ class LRPP():
         # print current pose at each feedback
         # feedback is MoveBaseFeedback type msg
         pose = feedback.base_position.pose
-        xy_goal_tolerance = rospy.get_param('/move_base/TrajectoryPlannerROS/xy_goal_tolerance')
 
         rospy.logdebug("Feedback for goal " + str(self.goal_cnt) + ":\n" +
                       self.print_pose_in_euler(pose))
