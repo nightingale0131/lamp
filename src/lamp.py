@@ -138,6 +138,10 @@ class LRPP():
             self.pose_seq = [Pose(Point(gx,gy,0.0), 
                 Quaternion(*(quaternion_from_euler(0,0,0))))]
 
+        # wait for input before sending goals to move_base
+        # raw_input('Move jackal back to location.\
+        # When ready, press any key to begin execution of task {}'.format(self.tcount))
+
         # setup task environment
         rospy.loginfo("Setting up environment...")
 
@@ -146,15 +150,13 @@ class LRPP():
 
         self.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
         rospy.sleep(1)
-        self.set_amcl_pose() # Set initial guess for amcl back to start 
 
         # Set up any obstacles if starting a new task
         if mode == "policy" and redo == False:
             self.del_cmd = spawn_obstacles()
 
-        # wait for input before sending goals to move_base
-        # raw_input('Check that amcl localized properly!\
-        # Press any key to begin execution of task {}'.format(self.tcount))
+        self.set_amcl_pose() # Set initial guess for amcl back to start 
+
         rospy.loginfo("Finished environment setup. Clearing cost map...")
         rospy.sleep(5)
 
@@ -224,7 +226,6 @@ class LRPP():
 
                 f.write(line)
 
-            """
             # print weights
             f.write("\n\n Map weights")
             for edge in self.base_graph.edges():
@@ -234,7 +235,6 @@ class LRPP():
                     line += "{:8.3f}".format(m.G.weight(u,v))
 
                 f.write(line)
-            """
 
             f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
             f.write("\nPolicy      {:9.3f}               {}"
