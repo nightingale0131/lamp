@@ -156,8 +156,11 @@ def euclidean_distance(a, b):
     #return abs(x1 - x2) + abs(y1 - y2)
 
 def moving_average(average, new_data, N=4.0):
-    average -= average/N
-    average += new_data/N
+    if average == float('inf') or new_data == float('inf'):
+        average = float('inf')
+    else:
+        average -= average/N
+        average += new_data/N
 
     return average
 

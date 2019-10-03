@@ -89,6 +89,12 @@ def setup_graph4(G):
 
     logger.info("Successfully setup graph4")
 
+def setup_graph5(G):
+    setup_graph4(G)
+    G.set_edge_weight(9,'g',8.0)
+    G.set_edge_weight(16,13,15.0)
+    logger.info("Successfully setup graph5")
+
 def set_blocked(G, u, v):
     G.set_edge_state(u, v, G.BLOCKED)
     G.set_edge_weight(u, v, float('inf'))
@@ -105,8 +111,18 @@ def test_map_agreement(M):
     logger.info("Map should be added.")
     mf.filter1([map3], map2)
 
-def test_update_weight(M):
-    (map1, map2, map3, map4) = M
+def test_update_weight(test_maps):
+    (map1, map3, map5) = test_maps
+    M = [map1, map3]
+    for m in M:
+        print(m.G)
+
+    new_M = mf.update_weights(M, map5)
+
+    for m in new_M:
+        print(m.G)
+        # print(m._cost['g'].cost)
+        # print(m._cost['g'].paths)
 
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
@@ -120,16 +136,20 @@ if __name__ == '__main__':
     test_tgraph2 = tgraph.TGraph(graph, poly_dict)
     test_tgraph3 = tgraph.TGraph(graph, poly_dict)
     test_tgraph4 = tgraph.TGraph(graph, poly_dict)
+    test_tgraph5 = tgraph.TGraph(graph, poly_dict)
 
     setup_graph1(test_tgraph1)
     setup_graph2(test_tgraph2)
     setup_graph3(test_tgraph3)
     setup_graph4(test_tgraph4)
+    setup_graph5(test_tgraph5)
 
     map1 = Map(copy(test_tgraph1))
     map1_copy = Map(copy(test_tgraph1))
     map2 = Map(copy(test_tgraph2))
     map3 = Map(copy(test_tgraph3))
     map4 = Map(copy(test_tgraph4))
+    map5 = Map(copy(test_tgraph5))
 
-    test_map_agreement([map1, map2, map3, map4])
+    # test_map_agreement([map1, map1_copy, map2, map3, map4])
+    test_update_weight([map1, map3, map5])

@@ -35,6 +35,8 @@ def update_weights(supermaps, new_map):
                 old_weight = m.G.weight(u,v)
                 new_weight = util.moving_average(old_weight, new_G.weight(u,v))
                 m.G.set_edge_weight(u,v,new_weight)
+                logger.debug("Modifying edge ({},{}): {:.2f} -> {:.2f}"
+                      .format(u,v,old_weight, new_weight))
         m.update_cost(m.G.goal)
 
     return supermaps
