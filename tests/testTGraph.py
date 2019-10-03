@@ -16,10 +16,11 @@ def get_bounds_from_yaml(grid, yamlfile):
     iheight, iwidth = grid.shape
     return util.calc_bounding_coord_of_grid(origin, iwidth, iheight, res)
 
-def test_drawing(G):
+def test_drawing(G=None):
     # G - tgraph type
     # filedir = '../maps/tristan_maze/base'
-    filedir = '../maps/test_large/base'
+    # filedir = '../maps/test_large/base'
+    filedir = '../maps/robohub_test/base'
     gridfile = filedir + '.pgm'
     yamlfile = filedir + '.yaml'
 
@@ -28,8 +29,9 @@ def test_drawing(G):
 
     fig, ax1 = plt.subplots(1,1)
     ax1.imshow(img, cmap='gray', interpolation='bicubic', extent=bounds)
-    G.draw_polygons(ax1)
-    G.draw_vertices(ax1)
+    if G != None:
+        G.draw_polygons(ax1)
+        G.draw_vertices(ax1)
     plt.grid(which='both')
     plt.show()
 
@@ -71,10 +73,14 @@ if __name__ == '__main__':
     # graph = nx.read_yaml('../maps/tristan_maze/tristan_maze_tgraph.yaml')
     # poly_dict = tgraph.polygon_dict_from_csv('../maps/tristan_maze/tristan_maze_polygons.csv')
 
-    graph = nx.read_yaml('../maps/test_large/test_large_tgraph.yaml')
-    poly_dict = tgraph.polygon_dict_from_csv('../maps/test_large/test_large_polygons.csv')
+    # graph = nx.read_yaml('../maps/test_large/test_large_tgraph.yaml')
+    # poly_dict = tgraph.polygon_dict_from_csv('../maps/test_large/test_large_polygons.csv')
+
+    graph = nx.read_yaml('../maps/robohub_test/robohub_test_tgraph.yaml')
+    poly_dict = tgraph.polygon_dict_from_csv('../maps/robohub_test/robohub_test_polygons.csv')
     tgraph1 = tgraph.TGraph(graph, poly_dict)
 
-    test_update(tgraph1)
+    # test_update(tgraph1)
     # test_get(tgraph1)
-    # test_drawing(tgraph1)
+    test_drawing(tgraph1)
+    # test_drawing()

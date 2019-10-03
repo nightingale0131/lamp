@@ -106,6 +106,35 @@ def test_large():
 
     create_graph('test_large_tgraph.yaml', node_list, edge_list)
 
+def robohub_tgraph():
+    # point locations need to be redefined later
+    node_list=[
+            ('s', {'defn': Point((0.0, 0.0))}),
+            ('g', {'defn': Point((5.0, 0.0))}),
+            (1, {'defn': LineString([(0.8, 3.5),(0.8, 2.1)])}),
+            (2, {'defn': LineString([(0.8, 1.5),(0.8, 0.4)])}),
+            (3, {'defn': LineString([(0.8, -0.2),(0.8, -1.4)])}),
+            (4, {'defn': LineString([(0.8, -2.0),(0.8, -3.6)])}),
+            (5, {'defn': LineString([(1.8, 2.1),(1.8, 1.0)])}),
+            (6, {'defn': LineString([(1.8, -0.7),(1.8, -2.0)])}),
+            (7, {'defn': LineString([(3.0, 3.5),(3.0, 2.1)])}),
+            (8, {'defn': LineString([(3.0, 0.8),(3.0, -0.6)])}),
+            (9, {'defn': LineString([(3.0, -2.0),(3.0, -3.6)])}),
+            (10, {'defn': LineString([(0.8, 0.0),(1.8, 0.0)])})
+            ]
+
+    edge_list=[('s',1),('s',2),('s',3),('s',4),
+               (1,2), (1,3), (1,4), (2,3), (2,4), (3,4),
+               (1,7), (4,9),
+               (2,5), (2,10), (5,10), (3,10), (3,6), (6,10),
+               (5,6), (5,8), (6,8),
+               (7,8), (7,9), (8,9),
+               ('g',7), ('g',8), ('g', 9)
+            ]
+
+    create_graph('robohub_test_tgraph.yaml', node_list, edge_list)
+
 if __name__ == '__main__':
     # tristan_maze_tgraph()
-    test_large()
+    # test_large()
+    robohub_tgraph()
