@@ -614,9 +614,11 @@ class LRPP():
         v = data.v
         if v.isdigit(): v = int(v)
 
-        if data.weight >= 0:
+        if data.weight >= 0 and self.mode == "policy":
+            rospy.loginfo("incoming weight: {:.2f}".format(data.weight))
             old_edge_weight =  self.curr_graph.weight(u, v)
             new_edge_weight = util.moving_average(old_edge_weight, data.weight)
+            rospy.loginfo("updated weight: {:.2f}".format(new_edge_weight))
             self.curr_graph.set_edge_weight(u,v,new_edge_weight)
 
         if data.state != self.base_map.G.UNKNOWN:
