@@ -126,10 +126,10 @@ class EdgeObserver():
                 edge_in_submap = (self.curr_submap == self.base_graph.get_polygon(u,v))
 
                 if edge_in_range or edge_in_submap:
-                    edge_state = self.check_edge(u,v)
+                    edge_state, edge_weight = self.check_edge(u,v)
 
                     # prepare message
-                    msg = EdgeUpdate(str(u), str(v), edge_state)
+                    msg = EdgeUpdate(str(u), str(v), edge_state, edge_weight)
                     self.edge_state_pub.publish(msg)
                     rate.sleep() # not sure if this is the right place to put this
 
@@ -167,20 +167,21 @@ class EdgeObserver():
         # TODO: check if area around start or goal is not completely occupied
         if not (submap.passable(startpx) and submap.passable(goalpx)):
             rospy.loginfo("No path found because start or goal not valid!")
-            return TGraph.BLOCKED
+            return TGraph.BLOCKED, float('inf')
 
         # see if A* returns a valid path
         came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
         rospy.logdebug("Finished search")
 
         try:
-            self.path = util.reconstruct_path(came_from, startpx, goalpx)
+            path = util.reconstruct_path(came_from, startpx, goalpx)
+            path_length = len(path)*submap.res
         except KeyError:
             rospy.loginfo("Path NOT FOUND!")
-            return TGraph.BLOCKED
+            return TGraph.BLOCKED, float('inf')
 
         rospy.loginfo("Path FOUND!")
-        return TGraph.UNKNOWN
+        return TGraph.UNKNOWN, path_length 
 
     def set_visibility_polygon(self):
         # 1) get submap of robot's visible range 

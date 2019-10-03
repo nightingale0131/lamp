@@ -155,6 +155,12 @@ def euclidean_distance(a, b):
     return math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2))
     #return abs(x1 - x2) + abs(y1 - y2)
 
+def moving_average(average, new_data, N=4.0):
+    average -= average/N
+    average += new_data/N
+
+    return average
+
 def is_same_edge(a,b):
     # a,b - (u,v) 
     # when comparing edges of undirected graphs, check if they are actually the same edge

@@ -282,8 +282,9 @@ class LRPP():
         # copy current tgraph 
         new_map = Map(copy(self.curr_graph))
 
-        # now do comparisons and map merging??
+        # now do comparisons, map merging, and weight updates
         self.M, info = mf.filter1(self.M, new_map)
+        self.M = mf.update_weights(self.M, new_map)
 
         # do no comparisons and just save the new map lol
         # self.M.append(new_map)
@@ -302,6 +303,8 @@ class LRPP():
         if self.goal_cnt > 0:
             self.vprev = self.path[self.goal_cnt - 1]
         self.vnext = self.path[self.goal_cnt]
+
+        if self.mode != "naive": self.update_curr_submap()
 
         # Now robot is fully done replanning and is on its way to next destination, so
         # reset path_blocked flag
@@ -357,9 +360,8 @@ class LRPP():
         if self.node != None and self.node.opair != None:
             (u,v) = self.node.opair.E 
             state = self.curr_graph.edge_state(u,v)
-            curr_poly = self.curr_graph.get_polygon(self.vprev, self.vnext)
             obsv_poly = self.curr_graph.get_polygon(u,v)
-            if state != self.base_map.G.UNKNOWN and curr_poly == obsv_poly:
+            if state != self.base_map.G.UNKNOWN and self.curr_submap == obsv_poly:
                 if state == self.base_map.G.UNBLOCKED: 
                     rospy.loginfo("Edge ({},{}) is UNBLOCKED! Moving to next node...".format(u,v))
                 else: 
@@ -608,13 +610,14 @@ class LRPP():
         v = data.v
         if v.isdigit(): v = int(v)
 
+        old_edge_weight =  self.curr_graph.weight(u, v)
+        new_edge_weight = util.moving_average(old_edge_weight, data.weight)
+        self.curr_graph.set_edge_weight(u,v,new_edge_weight)
+
         if data.state != self.base_map.G.UNKNOWN:
-            # TODO: have some 'average' of states before setting it, there appears to be the
-            # occasional false blocks/unblocks
             self.curr_graph.set_edge_state(u,v,data.state)
 
         if data.state == self.base_map.G.BLOCKED:
-            self.curr_graph.set_edge_weight(u,v,float('inf'))
 
             # if robot is not already replanning and the blocked edge is not under observation, 
             if not (self.path_blocked or self.edge_under_observation(u,v)):
@@ -648,6 +651,10 @@ class LRPP():
             self.localization_err = True
             rospy.logerr("LOCALIZATION: Travel distance exceeded {:.2f}m in one time step."
                     .format(limit))
+
+    def update_curr_submap(self):
+        if self.vnext != self.vprev:
+            self.curr_submap = self.curr_graph.get_polygon(self.vprev, self.vnext)
 
     def check_mode(self):
         assert (self.mode == "policy" or self.mode == "openloop" or self.mode == "naive"), (
