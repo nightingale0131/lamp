@@ -30,9 +30,10 @@ def update_weights(supermaps, new_map):
     new_G = copy(new_map.G) # in case new_map was added to supermaps
     for m in supermaps:
         for (u,v) in m.G.edges():
-            old_weight = m.G.weight(u,v)
-            new_weight = util.moving_average(old_weight, new_G.weight(u,v))
-            m.G.set_edge_weight(u,v,new_weight)
+            if new_G.weight(u,v) != float('inf'):
+                old_weight = m.G.weight(u,v)
+                new_weight = util.moving_average(old_weight, new_G.weight(u,v))
+                m.G.set_edge_weight(u,v,new_weight)
 
     return supermaps
 
