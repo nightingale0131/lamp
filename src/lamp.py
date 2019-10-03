@@ -110,7 +110,10 @@ class LRPP():
 
         if mode == "policy":
             # set robot to follow policy
-            self.curr_graph = tgraph.TGraph(self.M[0].G, self.poly_dict)
+            # create blank tgraph but with updated weights
+            self.curr_graph = tgraph.TGraph(self.M[0].G.graph, self.poly_dict)
+            for (u,v) in self.curr_graph.edges():
+                self.curr_graph.set_edge_state(u,v,self.curr_graph.UNKNOWN)
             self.node = self.policy[0].next_node()
             self.vprev = self.node.path[0] 
             self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
