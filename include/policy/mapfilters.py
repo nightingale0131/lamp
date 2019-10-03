@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 import networkx as nx
 import utility as util
+from copy import copy
 
 def update_p_est(M,t):
     """ Return updated estimated prob distribution
@@ -30,7 +31,7 @@ def update_weights(supermaps, new_map):
     for m in supermaps:
         for (u,v) in m.G.edges():
             old_weight = m.G.weight(u,v)
-            new_weight = util.rolling_average(old_weight, new_G.weight(u,v))
+            new_weight = util.moving_average(old_weight, new_G.weight(u,v))
             m.G.set_edge_weight(u,v,new_weight)
 
     return supermaps
