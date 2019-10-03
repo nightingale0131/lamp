@@ -93,6 +93,21 @@ def set_blocked(G, u, v):
     G.set_edge_state(u, v, G.BLOCKED)
     G.set_edge_weight(u, v, float('inf'))
 
+def test_map_agreement(M):
+    (map1, map1_copy, map2, map3, map4) = M
+
+    logger.info("Following should be a successful merge with map 0")
+    mf.filter1([map1, map3, map1_copy], map2)
+
+    logger.info("No merge should happen.")
+    mf.filter1([map1_copy, map3, map4], map2)
+
+    logger.info("Map should be added.")
+    mf.filter1([map3], map2)
+
+def test_update_weight(M):
+    (map1, map2, map3, map4) = M
+
 if __name__ == '__main__':
     testpath = os.path.dirname(os.path.abspath(__file__))
     # logging.basicConfig(filename=testpath + '/testMapAgreement_debug.log', filemode='w',level=logging.INFO)
@@ -117,13 +132,4 @@ if __name__ == '__main__':
     map3 = Map(copy(test_tgraph3))
     map4 = Map(copy(test_tgraph4))
 
-    logger.info("Following should be a successful merge with map 0")
-    mf.filter1([map1, map3, map1_copy], map2)
-
-    logger.info("No merge should happen.")
-    mf.filter1([map1_copy, map3, map4], map2)
-
-    logger.info("Map should be added.")
-    mf.filter1([map3], map2)
-
-    logger.info("Test passed")
+    test_map_agreement([map1, map2, map3, map4])
