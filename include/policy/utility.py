@@ -164,6 +164,12 @@ def moving_average(average, new_data, N=4.0):
 
     return average
 
+def average(alist):
+    # take average of a list, assuming they are numbers
+    n = len(alist)
+    sm = float(sum(alist))
+    return sm/n
+
 def is_same_edge(a,b):
     # a,b - (u,v) 
     # when comparing edges of undirected graphs, check if they are actually the same edge
