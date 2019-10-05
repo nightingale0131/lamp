@@ -74,7 +74,7 @@ node:
   1:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAmpmZmZmZ6T8AAAAAAAAMQJqZmZmZmek/zczMzMzMAEA=
+        AQIAAAACAAAAmpmZmZmZ6T8AAAAAAAASQJqZmZmZmek/zczMzMzMAEA=
   2:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
@@ -86,7 +86,7 @@ node:
   4:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAmpmZmZmZ6T8AAAAAAAAAwJqZmZmZmek/zczMzMzMDMA=
+        AQIAAAACAAAAmpmZmZmZ6T8AAAAAAAAAwJqZmZmZmek/AAAAAAAAEsA=
   5:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
@@ -98,7 +98,7 @@ node:
   7:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAAAAAAAAACEAAAAAAAAAMQAAAAAAAAAhAzczMzMzMAEA=
+        AQIAAAACAAAAAAAAAAAACEAAAAAAAAASQAAAAAAAAAhAzczMzMzMAEA=
   8:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
@@ -106,7 +106,7 @@ node:
   9:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAAAAAAAAACEAAAAAAAAAAwAAAAAAAAAhAzczMzMzMDMA=
+        AQIAAAACAAAAAAAAAAAACEAAAAAAAAAAwAAAAAAAAAhAAAAAAAAAEsA=
   10:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |

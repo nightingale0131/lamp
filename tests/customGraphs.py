@@ -111,15 +111,15 @@ def robohub_tgraph():
     node_list=[
             ('s', {'defn': Point((0.0, 0.0))}),
             ('g', {'defn': Point((5.0, 0.0))}),
-            (1, {'defn': LineString([(0.8, 3.5),(0.8, 2.1)])}),
+            (1, {'defn': LineString([(0.8, 4.5),(0.8, 2.1)])}),
             (2, {'defn': LineString([(0.8, 1.5),(0.8, 0.4)])}),
             (3, {'defn': LineString([(0.8, -0.2),(0.8, -1.4)])}),
-            (4, {'defn': LineString([(0.8, -2.0),(0.8, -3.6)])}),
+            (4, {'defn': LineString([(0.8, -2.0),(0.8, -4.5)])}),
             (5, {'defn': LineString([(1.8, 2.1),(1.8, 1.0)])}),
             (6, {'defn': LineString([(1.8, -0.7),(1.8, -2.0)])}),
-            (7, {'defn': LineString([(3.0, 3.5),(3.0, 2.1)])}),
+            (7, {'defn': LineString([(3.0, 4.5),(3.0, 2.1)])}),
             (8, {'defn': LineString([(3.0, 0.8),(3.0, -0.6)])}),
-            (9, {'defn': LineString([(3.0, -2.0),(3.0, -3.6)])}),
+            (9, {'defn': LineString([(3.0, -2.0),(3.0, -4.5)])}),
             (10, {'defn': LineString([(0.8, 0.0),(1.8, 0.0)])})
             ]
 
