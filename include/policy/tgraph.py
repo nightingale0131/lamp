@@ -118,9 +118,15 @@ class TGraph(object):
     def edges(self, data=False):
         return self.graph.edges(data=data)
 
-    def weight(self, u, v):
+    def weight(self, u, v, allow_inf=True):
         # assumes weights are set correctly (blocked edges are inf)
-        return self.graph.edge[u][v]['weight']
+        weight = self.graph.edge[u][v]['weight']
+
+        # don't return infinity if user wants edge weight if edge were unblocked
+        if allow_inf == False and weight == float('inf'):
+            return self.graph.edge[u][v]['unblocked_weight']
+        else:
+            return weight
     
     def set_edge_state(self, u, v, state):
         assert (state == self.UNBLOCKED or state == self.BLOCKED or state == self.UNKNOWN), (
@@ -131,6 +137,13 @@ class TGraph(object):
     def set_edge_weight(self, u, v, weight):
         assert isinstance(weight, (float, int, long)), (
             "Attempted to assign a non-number ({}) to edge ({},{}).".format(weight, u, v))
+
+        # initial weight is never going to be inf
+        if 'weight' in self.graph.edge[u][v].keys():
+            curr_edge_weight = self.graph.edge[u][v]['weight']
+
+            if weight == float('inf') and curr_edge_weight != float('inf'):
+                self.graph.edge[u][v]['unblocked_weight'] = curr_edge_weight
 
         self.graph.edge[u][v]['weight'] = weight
 
