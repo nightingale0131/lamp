@@ -70,6 +70,7 @@ class LRPP():
         self.T = T  # number of tasks to execute
         self.tcount = 1 # current task being executed
 
+        self.suspend = False # flag to temporarily suspend plan & edge callbacks
         self.path_blocked = False # flag for path being blocked, calls reactive algo
         self.at_final_goal = False # flag for reaching final destination
         self.entered_openloop = False
@@ -312,8 +313,10 @@ class LRPP():
         if self.mode != "naive": self.update_curr_submap()
 
         # Now robot is fully done replanning and is on its way to next destination, so
-        # reset path_blocked flag
+        # reset path_blocked flag and unsuspend cb
         self.path_blocked = False
+        self.suspend = False
+        rospy.loginfo("UNSUSPENDED CALLBACKS!")
 
     def feedback_cb(self, feedback):
         # print current pose at each feedback
@@ -353,6 +356,8 @@ class LRPP():
         if self.move_to_next_node():
             # if node under observation is no longer unknown, move to next node
             # selecting next node in tree and setting path
+            rospy.loginfo("SUSPENDING CALLBACKS...")
+            self.suspend = True
             (u,v) = self.node.opair.E 
             state = self.curr_graph.edge_state(u,v)
             self.node = self.node.next_node(state)
@@ -574,7 +579,8 @@ class LRPP():
                 rospy.loginfo("result of check_edge_state: {}".format(curr_edge_state))
 
                 if (curr_edge_state == self.base_map.G.BLOCKED and
-                    not self.edge_under_observation(vnext, vcurr)):
+                    not self.edge_under_observation(vnext, vcurr) and
+                    not self.suspend):
                     # recalculate path on curr_graph
                     self.path_blocked = True
 
@@ -587,6 +593,8 @@ class LRPP():
 
     def replan(self):
         rospy.loginfo("In openloop, replanning on graph...")
+        rospy.loginfo("SUSPENDING CALLBACKS...")
+        self.suspend = True
         rospy.sleep(1) # ensure goals set during this function are after the cancel time
 
         self.entered_openloop = True
@@ -615,10 +623,10 @@ class LRPP():
         if v.isdigit(): v = int(v)
 
         if data.weight >= 0 and self.mode == "policy":
-            rospy.loginfo("({},{}) incoming weight: {:.2f}".format(u,v,data.weight))
+            rospy.logdebug("({},{}) incoming weight: {:.2f}".format(u,v,data.weight))
             old_edge_weight =  self.curr_graph.weight(u, v, allow_inf=False)
             new_edge_weight = util.moving_average(old_edge_weight, data.weight)
-            rospy.loginfo("({},{}) updated weight: {:.2f}".format(u,v,new_edge_weight))
+            rospy.logdebug("({},{}) updated weight: {:.2f}".format(u,v,new_edge_weight))
             self.curr_graph.set_edge_weight(u,v,new_edge_weight)
 
         if data.state == self.base_map.G.UNBLOCKED:
@@ -626,16 +634,16 @@ class LRPP():
             unblocked_edge_weight = self.curr_graph.weight(u, v, allow_inf=False)
             self.curr_graph.set_edge_weight(u,v,unblocked_edge_weight)
             rospy.loginfo("set ({},{}) as UNBLOCKED".format(u,v))
-            rospy.loginfo("({},{}) updated weight: {:.2f}".format(u,v,unblocked_edge_weight))
+            rospy.logdebug("({},{}) updated weight: {:.2f}".format(u,v,unblocked_edge_weight))
 
         if data.state == self.base_map.G.BLOCKED:
             self.curr_graph.set_edge_state(u,v,data.state)
             self.curr_graph.set_edge_weight(u,v,float('inf'))
             rospy.loginfo("set ({},{}) as BLOCKED".format(u,v))
-            rospy.loginfo("({},{}) updated weight: {:.2f}".format(u,v,float('inf')))
+            rospy.logdebug("({},{}) updated weight: {:.2f}".format(u,v,float('inf')))
 
             # if robot is not already replanning and the blocked edge is not under observation, 
-            if not (self.path_blocked or self.edge_under_observation(u,v)):
+            if not (self.path_blocked or self.edge_under_observation(u,v) or self.suspend):
                 for i, v_i in enumerate(self.path):
                     if i == 0: continue
                     if (self.path[i-1] == u and v_i == v) or (self.path[i-1] == v and v_i == u):
