@@ -134,7 +134,41 @@ def robohub_tgraph():
 
     create_graph('robohub_test_tgraph.yaml', node_list, edge_list)
 
+def e7_tgraph():
+    # point locations need to be redefined later
+    node_list=[
+            ('s', {'defn': Point((6.2, 5.2))}),
+            ('g', {'defn': Point((15.0, 10.0))}),
+            (1, {'defn': LineString([(4.2, 9.1),(7.7, 9.1)])}),
+            (2, {'defn': LineString([(7.7, 9.1),(9.7, 9.1)])}),
+            (3, {'defn': LineString([(9.7, 5.1),(9.7, 7.1)])}),
+            (4, {'defn': LineString([(9.7, 3.1),(9.7, 5.1)])}),
+            (5, {'defn': LineString([(7.7, 18.1),(7.7, 20.1)])}),
+            (6, {'defn': LineString([(7.7, 20.1),(7.7, 22)])}),
+            (7, {'defn': LineString([(9.7, 13.1),(9.7, 15.1)])}),
+            (8, {'defn': LineString([(13.7, 15.1),(13.7, 17.1)])}),
+            (9, {'defn': LineString([(11.7, 15.1),(13.7, 15.1)])}),
+            (10, {'defn': LineString([(13.7, 9),(13.7, 11)])}),
+            (11, {'defn': LineString([(13.7, 3.1),(13.7, 5.1)])}),
+            (12, {'defn': LineString([(13.7, 21.1),(13.7, 23.1)])})
+            ]
+
+    edge_list=[('s',1), ('s',2), ('s',3), ('s',4),
+               (1,2), (1,3), (1,4), (2,3), (2,4), (3,4),
+               (1,5), (1,6), (5,6),
+               (2,7),
+               (5,8), (5,9), (8,9),
+               (3,7), (3,9), (3,10), (7,9), (7,10), (9,10),
+               (4,11),
+               ('g',8), ('g',10), ('g',11), ('g',12),
+               (8,10), (8,11), (8,12), (10,11), (10,12), (11,12),
+               (6,12)
+            ]
+
+    create_graph('e7_tgraph.yaml', node_list, edge_list)
+
 if __name__ == '__main__':
     # tristan_maze_tgraph()
     # test_large()
-    robohub_tgraph()
+    # robohub_tgraph()
+    e7_tgraph()

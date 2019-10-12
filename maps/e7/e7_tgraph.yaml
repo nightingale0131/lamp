@@ -1,0 +1,143 @@
+!!python/object:networkx.classes.graph.Graph
+adj: &id036
+  1:
+    2: &id001 {}
+    3: &id002 {}
+    4: &id004 {}
+    5: &id007 {}
+    6: &id008 {}
+    s: &id032 {}
+  2:
+    1: *id001
+    3: &id003 {}
+    4: &id005 {}
+    7: &id010 {}
+    s: &id033 {}
+  3:
+    1: *id002
+    2: *id003
+    4: &id006 {}
+    7: &id011 {}
+    9: &id013 {}
+    10: &id017 {}
+    s: &id034 {}
+  4:
+    1: *id004
+    2: *id005
+    3: *id006
+    11: &id021 {}
+    s: &id035 {}
+  5:
+    1: *id007
+    6: &id009 {}
+    8: &id012 {}
+    9: &id014 {}
+  6:
+    1: *id008
+    5: *id009
+    12: &id024 {}
+  7:
+    2: *id010
+    3: *id011
+    9: &id015 {}
+    10: &id018 {}
+  8:
+    5: *id012
+    9: &id016 {}
+    10: &id019 {}
+    11: &id022 {}
+    12: &id025 {}
+    g: &id028 {}
+  9:
+    3: *id013
+    5: *id014
+    7: *id015
+    8: *id016
+    10: &id020 {}
+  10:
+    3: *id017
+    7: *id018
+    8: *id019
+    9: *id020
+    11: &id023 {}
+    12: &id026 {}
+    g: &id029 {}
+  11:
+    4: *id021
+    8: *id022
+    10: *id023
+    12: &id027 {}
+    g: &id030 {}
+  12:
+    6: *id024
+    8: *id025
+    10: *id026
+    11: *id027
+    g: &id031 {}
+  g:
+    8: *id028
+    10: *id029
+    11: *id030
+    12: *id031
+  s:
+    1: *id032
+    2: *id033
+    3: *id034
+    4: *id035
+adjlist_dict_factory: &id037 !!python/name:__builtin__.dict ''
+edge: *id036
+edge_attr_dict_factory: *id037
+graph: {}
+node:
+  1:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAzczMzMzMEEAzMzMzMzMiQM3MzMzMzB5AMzMzMzMzIkA=
+  2:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAzczMzMzMHkAzMzMzMzMiQGZmZmZmZiNAMzMzMzMzIkA=
+  3:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
+        \0\0\0\x02\0\0\0ffffff#@ffffff\x14@ffffff#@ffffff\x1C@"}
+  4:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAZmZmZmZmI0DNzMzMzMwIQGZmZmZmZiNAZmZmZmZmFEA=
+  5:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAzczMzMzMHkCamZmZmRkyQM3MzMzMzB5AmpmZmZkZNEA=
+  6:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAzczMzMzMHkCamZmZmRk0QM3MzMzMzB5AAAAAAAAANkA=
+  7:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
+        \0\0\0\x02\0\0\0ffffff#@333333*@ffffff#@333333.@"}
+  8:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAZmZmZmZmK0AzMzMzMzMuQGZmZmZmZitAmpmZmZkZMUA=
+  9:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
+        \0\0\0\x02\0\0\0ffffff'@333333.@ffffff+@333333.@"}
+  10:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
+        \0\0\0\x02\0\0\0ffffff+@\0\0\0\0\0\0\"@ffffff+@\0\0\0\0\0\0&@"}
+  11:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAZmZmZmZmK0DNzMzMzMwIQGZmZmZmZitAZmZmZmZmFEA=
+  12:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAZmZmZmZmK0CamZmZmRk1QGZmZmZmZitAmpmZmZkZN0A=
+  g:
+    defn: !!python/object/apply:shapely.geometry.point.Point {state: "\x01\x01\0\0\
+        \0\0\0\0\0\0\0.@\0\0\0\0\0\0$@"}
+  s:
+    defn: !!python/object/apply:shapely.geometry.point.Point
+      state: !!binary |
+        AQEAAADNzMzMzMwYQM3MzMzMzBRA
+node_dict_factory: *id037
