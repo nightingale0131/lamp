@@ -111,7 +111,7 @@ node:
   6:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAzczMzMzMHkCamZmZmRk0QM3MzMzMzB5AAAAAAAAANkA=
+        AQIAAAACAAAAzczMzMzMHkCamZmZmRk0QM3MzMzMzB5AAAAAAAAAOEA=
   7:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
         \0\0\0\x02\0\0\0ffffff#@333333*@ffffff#@333333.@"}
@@ -132,12 +132,11 @@ node:
   12:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAZmZmZmZmK0CamZmZmRk1QGZmZmZmZitAmpmZmZkZN0A=
+        AQIAAAACAAAAZmZmZmZmK0CamZmZmRk1QGZmZmZmZitAmpmZmZkZOUA=
   g:
     defn: !!python/object/apply:shapely.geometry.point.Point {state: "\x01\x01\0\0\
         \0\0\0\0\0\0\0.@\0\0\0\0\0\0$@"}
   s:
-    defn: !!python/object/apply:shapely.geometry.point.Point
-      state: !!binary |
-        AQEAAADNzMzMzMwYQM3MzMzMzBRA
+    defn: !!python/object/apply:shapely.geometry.point.Point {state: "\x01\x01\0\0\
+        \0ffffff\x1C@333333\x13@"}
 node_dict_factory: *id037
