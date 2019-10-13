@@ -99,7 +99,7 @@ node:
         AQIAAAACAAAAzczMzMzMHkAzMzMzMzMiQGZmZmZmZiNAMzMzMzMzIkA=
   3:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
-        \0\0\0\x02\0\0\0ffffff#@ffffff\x14@ffffff#@ffffff\x1C@"}
+        \0\0\0\x02\0\0\0ffffff#@ffffff\x14@ffffff#@333333 @"}
   4:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
@@ -107,7 +107,7 @@ node:
   5:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAzczMzMzMHkCamZmZmRkyQM3MzMzMzB5AmpmZmZkZNEA=
+        AQIAAAACAAAAzczMzMzMHkCamZmZmRkxQM3MzMzMzB5AmpmZmZkZNEA=
   6:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
@@ -118,13 +118,13 @@ node:
   8:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAZmZmZmZmK0AzMzMzMzMuQGZmZmZmZitAmpmZmZkZMUA=
+        AQIAAAACAAAAZmZmZmZmK0AzMzMzMzMuQGZmZmZmZitAmpmZmZkZMkA=
   9:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
         \0\0\0\x02\0\0\0ffffff'@333333.@ffffff+@333333.@"}
   10:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString {state: "\x01\x02\
-        \0\0\0\x02\0\0\0ffffff+@\0\0\0\0\0\0\"@ffffff+@\0\0\0\0\0\0&@"}
+        \0\0\0\x02\0\0\0ffffff+@\0\0\0\0\0\0!@ffffff+@\0\0\0\0\0\0'@"}
   11:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
