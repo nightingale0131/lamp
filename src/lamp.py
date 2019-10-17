@@ -342,7 +342,7 @@ class LRPP():
 
         if dist_to_curr_goal < TOL:
             if self.vprev != self.vnext and self.mode != "naive":
-                self.curr_graph.set_edge_state(self.vprev, self.vnext, self.base_map.G.UNBLOCKED)
+                self.curr_graph.update_edge(self.vprev, self.vnext, self.base_map.G.UNBLOCKED)
 
             if self.goal_cnt < len(self.pose_seq) - 1:
                 rospy.loginfo("Goal pose " + str(self.goal_cnt) + " reached!")
@@ -425,8 +425,7 @@ class LRPP():
             elif self.vnext != self.vprev and self.mode != "naive":
                 self.path_blocked = True
                 # set edge to be blocked
-                self.curr_graph.set_edge_state(self.vnext, self.vprev, self.base_map.G.BLOCKED)
-                self.curr_graph.set_edge_weight(self.vnext, self.vprev,float('inf'))
+                self.curr_graph.update_edge(self.vnext, self.vprev, self.base_map.G.BLOCKED)
 
                 self.replan()
             else:
@@ -610,7 +609,6 @@ class LRPP():
 
         self.set_new_path(path)
         self.set_and_send_next_goal()
-        # self.path_blocked = False
 
     def edge_callback(self, data):
         # updates edges
@@ -620,26 +618,12 @@ class LRPP():
         v = data.v
         if v.isdigit(): v = int(v)
 
-        if data.weight >= 0 and self.mode == "policy":
-            rospy.logdebug("({},{}) incoming weight: {:.2f}".format(u,v,data.weight))
-            old_edge_weight =  self.curr_graph.weight(u, v, allow_inf=False)
-            new_edge_weight = util.moving_average(old_edge_weight, data.weight)
-            rospy.logdebug("({},{}) updated weight: {:.2f}".format(u,v,new_edge_weight))
-            self.curr_graph.set_edge_weight(u,v,new_edge_weight)
-
-        if data.state == self.base_map.G.UNBLOCKED:
-            self.curr_graph.set_edge_state(u,v,data.state)
-            unblocked_edge_weight = self.curr_graph.weight(u, v, allow_inf=False)
-            self.curr_graph.set_edge_weight(u,v,unblocked_edge_weight)
-            rospy.loginfo("set ({},{}) as UNBLOCKED".format(u,v))
-            rospy.logdebug("({},{}) updated weight: {:.2f}".format(u,v,unblocked_edge_weight))
+        if self.mode == "policy":
+            self.curr_graph.update_edge(u, v, data.state, data.weight)
+        elif self.mode == "openloop":
+            self.curr_graph.update_edge(u, v, data.state)
 
         if data.state == self.base_map.G.BLOCKED:
-            self.curr_graph.set_edge_state(u,v,data.state)
-            self.curr_graph.set_edge_weight(u,v,float('inf'))
-            rospy.loginfo("set ({},{}) as BLOCKED".format(u,v))
-            rospy.logdebug("({},{}) updated weight: {:.2f}".format(u,v,float('inf')))
-
             # if robot is not already replanning and the blocked edge is not under observation, 
             if not (self.path_blocked or self.edge_under_observation(u,v) or self.suspend):
                 for i, v_i in enumerate(self.path):

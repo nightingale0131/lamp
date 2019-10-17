@@ -147,6 +147,34 @@ class TGraph(object):
 
         self.graph.edge[u][v]['weight'] = weight
 
+    def update_edge(self, u, v, new_state, new_weight=-1):
+        # combining set_edge_state and set_edge_weight
+        # assuming attr state and weight already exist for edge
+        assert (new_state == self.UNBLOCKED or new_state == self.BLOCKED or new_state == self.UNKNOWN), (
+            "Attempted to assign invalid state ({}) to edge ({},{}).".format(state, u, v))
+
+        old_state = self.edge_state(u, v)
+        if new_weight >= 0:
+            old_weight = self.weight(u, v, allow_inf=False)
+            new_weight = util.moving_average(old_weight, new_weight)
+
+        # update state
+        if new_state != self.UNKNOWN:
+            logger.info("set ({},{}): state = {}".format(u,v,new_state))
+            set_edge_state(u, v, new_state)
+
+        # update weight
+        if (old_state == self.UNKNOWN or old_state == self.UNBLOCKED):
+            if (new_state != self.BLOCKED and new_weight >= 0):
+                set_edge_weight(u, v, new_weight)
+            elif new_state == self.BLOCKED:
+                set_edge_weight(u, v, float('inf'))
+        elif old_state == self.BLOCKED:
+            if (new_state == self.UNBLOCKED and new_weight >= 0):
+                set_edge_weight(u, v, new_weight)
+            else:
+                set_edge_weight(u, v, float('inf'))
+
     def check_edge_state(self, u, v, path, padding=0, set_unblocked=True):
         # (u,v) - edge we want to check
         # path - list of (x,y) coords repr a path
@@ -157,8 +185,7 @@ class TGraph(object):
         if self.graph.edge[u][v]['state'] != self.UNBLOCKED:
             # if path is empty, planner failed to find a valid path so edge must be blocked
             if path == []:
-                self.set_edge_state(u,v,self.BLOCKED)
-                self.set_edge_weight(u,v,float('inf'))
+                self.update_edge(u, v, self.BLOCKED)
             else:
                 path = LineString(path)
 
@@ -170,10 +197,9 @@ class TGraph(object):
                 path_in_submap = infl_poly.contains(path)
 
                 if path_in_submap and set_unblocked: 
-                    self.set_edge_state(u,v,self.UNBLOCKED)
+                    self.update_edge(u,v,self.UNBLOCKED)
                 elif not path_in_submap: 
-                    self.set_edge_state(u,v,self.BLOCKED)
-                    self.set_edge_weight(u,v,float('inf'))
+                    self.update_edge(u,v,self.BLOCKED)
 
         return self.graph.edge[u][v]['state']
 
