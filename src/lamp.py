@@ -664,14 +664,17 @@ class LRPP():
         self.travelled_dist = 0
 
     def update_travel_dist(self, d):
-        # to avoid including localization errors, throw out calculation if d > 5m
-        limit = 5.0
+        # to avoid bad localization errors, restart task if robot pose estimate jumps too
+        # much
+        limit = 2.0
         if d <= limit:
             self.travelled_dist += d
         else:
             self.localization_err = True
             rospy.logerr("LOCALIZATION: Travel distance exceeded {:.2f}m in one time step."
                     .format(limit))
+            self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+            self.finish_task(err=True)
 
     def update_curr_submap(self):
         if self.vnext != self.vprev:
