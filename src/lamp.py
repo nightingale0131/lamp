@@ -648,8 +648,6 @@ class LRPP():
         self.travelled_dist = 0
 
     def update_travel_dist(self, d):
-        # to avoid bad localization errors, restart task if robot pose estimate jumps too
-        # much
         limit = 2.0
         if d <= limit:
             self.travelled_dist += d
@@ -657,8 +655,8 @@ class LRPP():
             self.localization_err = True
             rospy.logerr("LOCALIZATION: Travel distance exceeded {:.2f}m in one time step."
                     .format(limit))
-            self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
-            self.finish_task(err=True)
+            # self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+            # self.finish_task(err=True)
 
     def update_curr_submap(self):
         if self.vnext != self.vprev:
@@ -694,7 +692,11 @@ class LRPP():
         # set initial position for amcl
         init_pose = PoseWithCovarianceStamped()
         init_pose.pose.pose = self.start_pose
-        init_pose.pose.covariance = np.identity(6).flatten()
+        # init_pose.pose.covariance = np.identity(6).flatten()
+        init_pose.pose.covariance = np.zeros(36)
+        init_pose.pose.covariance[0] = 0.25
+        init_pose.pose.covariance[7] = 0.25
+        init_pose.pose.covariance[35] = 0.05
         init_pose.header.stamp = rospy.Time.now()
         init_pose.header.frame_id = "map"
 

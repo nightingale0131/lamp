@@ -161,19 +161,19 @@ class TGraph(object):
         # update state
         if new_state != self.UNKNOWN:
             logger.info("set ({},{}): state = {}".format(u,v,new_state))
-            set_edge_state(u, v, new_state)
+            self.set_edge_state(u, v, new_state)
 
         # update weight
         if (old_state == self.UNKNOWN or old_state == self.UNBLOCKED):
             if (new_state != self.BLOCKED and new_weight >= 0):
-                set_edge_weight(u, v, new_weight)
+                self.set_edge_weight(u, v, new_weight)
             elif new_state == self.BLOCKED:
-                set_edge_weight(u, v, float('inf'))
+                self.set_edge_weight(u, v, float('inf'))
         elif old_state == self.BLOCKED:
             if (new_state == self.UNBLOCKED and new_weight >= 0):
-                set_edge_weight(u, v, new_weight)
+                self.set_edge_weight(u, v, new_weight)
             else:
-                set_edge_weight(u, v, float('inf'))
+                self.set_edge_weight(u, v, float('inf'))
 
     def check_edge_state(self, u, v, path, padding=0, set_unblocked=True):
         # (u,v) - edge we want to check
