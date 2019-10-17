@@ -226,7 +226,6 @@ class LRPP():
 
                 f.write(line)
 
-            '''
             # print weights
             f.write("\n\n Map weights")
             for edge in self.base_graph.edges():
@@ -236,7 +235,6 @@ class LRPP():
                     line += "{:8.3f}".format(m.G.weight(u,v))
 
                 f.write(line)
-            '''
 
             f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
             f.write("\nPolicy      {:9.3f}               {}"
@@ -709,7 +707,7 @@ class LRPP():
         # set initial position for amcl
         init_pose = PoseWithCovarianceStamped()
         init_pose.pose.pose = self.start_pose
-        init_pose.pose.covariance = np.zeros(36)
+        init_pose.pose.covariance = np.identity(6).flatten()
         init_pose.header.stamp = rospy.Time.now()
         init_pose.header.frame_id = "map"
 
@@ -744,7 +742,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     # set number of tasks
-    ntasks = 30
+    ntasks = 50
 
     # run LRPP
     try:
