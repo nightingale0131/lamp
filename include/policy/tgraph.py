@@ -154,8 +154,9 @@ class TGraph(object):
             "Attempted to assign invalid state ({}) to edge ({},{}).".format(state, u, v))
 
         old_state = self.edge_state(u, v)
+        old_weight = self.weight(u, v, allow_inf=False)
+
         if new_weight >= 0:
-            old_weight = self.weight(u, v, allow_inf=False)
             new_weight = util.moving_average(old_weight, new_weight)
 
         # update state
@@ -170,8 +171,11 @@ class TGraph(object):
             elif new_state == self.BLOCKED:
                 self.set_edge_weight(u, v, float('inf'))
         elif old_state == self.BLOCKED:
-            if (new_state == self.UNBLOCKED and new_weight >= 0):
-                self.set_edge_weight(u, v, new_weight)
+            if (new_state == self.UNBLOCKED):
+                if new_weight >= 0:
+                    self.set_edge_weight(u, v, new_weight)
+                else:
+                    self.set_edge_weight(u, v, old_weight)
             else:
                 self.set_edge_weight(u, v, float('inf'))
 
