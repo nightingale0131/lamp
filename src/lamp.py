@@ -155,7 +155,8 @@ class LRPP():
 
         # Set up any obstacles if starting a new task
         if mode == "policy" and redo == False:
-            self.del_cmd = spawn_obstacles()
+            # self.del_cmd = spawn_obstacles()
+            self.task_obstacles = spawn_obstacles()
 
         rospy.loginfo("Finished environment setup. Clearing cost map...")
         rospy.sleep(5)
@@ -252,7 +253,9 @@ class LRPP():
             f.write("\n==============================")
 
             # clear all non-static obstacles
-            delete_obstacles(self.del_cmd)
+            for model in self.task_obstacles:
+                self.delete_obstacle(model)
+            # delete_obstacles(self.del_cmd)
 
             # increment task counter
             self.tcount +=1
@@ -709,6 +712,15 @@ class LRPP():
             get_model_state = rospy.ServiceProxy('gazebo/get_model_state', GetModelState)
             state = get_model_state(model, "world")
             return (state.pose.position.x, state.pose.position.y)
+        except rospy.ServiceException, e:
+            rospy.logerr("Service call failed: {}".format(e))
+
+    def delete_obstacle(self, model_name):
+        # service client for deleting obstacle in gazebo
+        rospy.wait_for_service('gazebo/delete_model')
+        try:
+            delete = rospy.ServiceProxy('gazebo/delete_model', DeleteModel)
+            delete(model_name)
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
 
