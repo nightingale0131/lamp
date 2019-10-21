@@ -27,16 +27,15 @@ vi_prob = 0
 vii_prob = 0
 viii_prob = 0
 
-
-random.seed()
-
 def spawn_obstacles():
+    random.seed()
     cmd = ''
     del_cmd = ''
     obstacles = []
     v_spawn = False #only spawn dumpster_v if dumpster_vi or dumpster_vii present
     avoid_set = [(18.25,17.521),(16.681,3.661),(16.681,6.725),(14.182,8.204),(14.294,17.532),(10.169,8.204),(10.168,17.558),(5.787,3.507),(2.841,6.814)] #list of doorway locations to prevent spawning debris in doorways 
 
+    suff = random.randint(0,100) # random suffix to all model names
     barriers = []
 
     if random.random() < bgi_prob:
@@ -53,7 +52,7 @@ def spawn_obstacles():
 
     # add barriers to cmd
     for letter in barriers:
-        temp_cmd, temp_del, model_name = barrier(letter)
+        temp_cmd, temp_del, model_name = barrier(letter, suff)
         cmd += temp_cmd
         del_cmd += temp_del
         obstacles += [model_name]
@@ -62,32 +61,36 @@ def spawn_obstacles():
         x_pos1 = 18.424
         x_pos2 = 17.198
         y_pos = random.random()*6.0 + 9.0
+        model_name1 = 'block_i_1_{}'.format(suff)
+        model_name2 = 'block_i_2_{}'.format(suff)
         cmd += ("rosrun gazebo_ros spawn_model " + 
                 "-database drc_practice_orange_jersey_barrier " + 
-                "-gazebo -model block_i_1 -x " + str(x_pos1) + 
+                "-gazebo -model " + model_name1 + " -x " + str(x_pos1) + 
                 " -y " + str(y_pos) + " -Y 1.571\n")
         cmd += ("rosrun gazebo_ros spawn_model " + 
                 "-database drc_practice_blue_cylinder " +
-                "-gazebo -model block_i_2 -x " + str(x_pos2) +
+                "-gazebo -model " + model_name2 + " -x " + str(x_pos2) +
                 " -y " + str(y_pos) + "\n")
         del_cmd += ('rosservice call gazebo/delete_model block_i_1\n' + 
                 'rosservice call gazebo/delete_model block_i_2\n')
-        obstacles += ['block_i_1', 'block_i_2']
+        obstacles += [model_name1, model_name2]
         avoid_set.extend([(x_pos1,y_pos), (x_pos2,y_pos)])
 
     if random.random() < ii_prob: 
         x_pos1 = 15.067
         x_pos2 = 12.918
         y_pos = random.random()*5.0 + 10.0
+        model_name1 = "dumpster_ii_1_{}".format(suff)
+        model_name2 = "dumpster_ii_2_{}".format(suff)
         cmd += ("rosrun gazebo_ros spawn_model -database dumpster" + 
-                " -gazebo -model dumpster_ii_1 -x " + str(x_pos1) + 
+                " -gazebo -model " + model_name1 + " -x " + str(x_pos1) + 
                 ' -y ' + str(y_pos) + " -Y 0\n" + 
                 "rosrun gazebo_ros spawn_model -database dumpster" + 
-                " -gazebo -model dumpster_ii_2 -x " + str(x_pos2) + 
+                " -gazebo -model " + model_name2 + " -x " + str(x_pos2) + 
                 ' -y ' + str(y_pos) + ' -Y 1.570796\n')
         del_cmd += 'rosservice call gazebo/delete_model dumpster_ii_1\n\
             rosservice call gazebo/delete_model dumpster_ii_2\n'
-        obstacles += ['dumpster_ii_1', 'dumpster_ii_2']
+        obstacles += [model_name1, model_name2]
         avoid_set.append((x_pos1, y_pos))
         avoid_set.append((x_pos2, y_pos))
 
@@ -95,15 +98,17 @@ def spawn_obstacles():
         x_pos = random.random()*4.0 + 6.6
         y_pos1 = 11.42
         y_pos2 = 9.5
+        model_name1 = "dumpster_iii_1_{}".format(suff)
+        model_name2 = "dumpster_iii_2_{}".format(suff)
         cmd += ('rosrun gazebo_ros spawn_model -database dumpster\
-                 -gazebo -model dumpster_iii_1' + 
+                 -gazebo -model ' + model_name1 + 
                 ' -x ' + str(x_pos) + ' -y ' + str(y_pos1) + ' -Y 0.0\n\
                 rosrun gazebo_ros spawn_model -database dumpster\
-                 -gazebo -model dumpster_iii_2' + 
+                 -gazebo -model ' + model_name2 + 
                 ' -x ' + str(x_pos) + ' -y ' + str(y_pos2) + ' -Y 0.0\n')
         del_cmd = del_cmd + 'rosservice call gazebo/delete_model dumpster_iii_1\n\
             rosservice call gazebo/delete_model dumpster_iii_2\n'
-        obstacles += ['dumpster_iii_1', 'dumpster_iii_2']
+        obstacles += [model_name1, model_name2]
         avoid_set.append((x_pos,y_pos1))
         avoid_set.append((x_pos,y_pos2))
 
@@ -111,40 +116,45 @@ def spawn_obstacles():
         x_pos1 = 12.774
         y_pos1 = 6.486
         v_spawn = True
+        model_name = "dumpster_vi_{}".format(suff)
         cmd += ('rosrun gazebo_ros spawn_model -database dumpster\
-                 -gazebo -model dumpster_vi' + 
+                 -gazebo -model ' + model_name +  
                 ' -x ' + str(x_pos1) + ' -y ' + str(y_pos1) + ' -Y -1.160\n')
         del_cmd += 'rosservice call gazebo/delete_model dumpster_vi\n'
-        obstacles += ['dumpster_vi']
+        obstacles += [model_name]
         avoid_set.append((x_pos1,y_pos1))
 
     if random.random() < vii_prob: 
         x_pos = 13.127 
         y_pos = 3.735
         v_spawn = True
+        model_name = "dumpster_vii_{}".format(suff)
         cmd += ('rosrun gazebo_ros spawn_model -database dumpster\
-                 -gazebo -model dumpster_vii' + 
+                 -gazebo -model ' + model_name + 
                 ' -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y -1.567\n')
         del_cmd += 'rosservice call gazebo/delete_model dumpster_vii\n'
-        obstacles += ['dumpster_vii']
+        obstacles += [model_name]
         avoid_set.append((x_pos,y_pos))
 
     if v_spawn:
         x_pos = 15.198
         y_pos = 4.968 
-        cmd = cmd + 'rosrun gazebo_ros spawn_model -database dumpster -gazebo -model dumpster_v -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n'
+        model_name = "dumpster_v_{}".format(suff)
+        cmd += ('rosrun gazebo_ros spawn_model -database dumpster -gazebo -model ' + 
+                model_name + ' -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n')
         del_cmd += 'rosservice call gazebo/delete_model dumpster_v\n'
-        obstacles += ['dumpster_v']
+        obstacles += [model_name]
         avoid_set.append((x_pos,y_pos))
 
     if random.random() < viii_prob: 
         x_pos = 4.3266
         y_pos = 5.1462
+        model_name = "dumpster_viii_{}".format(suff)
         cmd += ('rosrun gazebo_ros spawn_model -database dumpster\
-                 -gazebo -model dumpster_viii' + 
+                 -gazebo -model ' + model_name +  
                 ' -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 1.092\n')
         del_cmd += 'rosservice call gazebo/delete_model dumpster_viii\n'
-        obstacles += ['dumpster_viii']
+        obstacles += [model_name]
         avoid_set.append((x_pos,y_pos))
 
     num_debris = random.randint(0,11)
@@ -202,9 +212,11 @@ def spawn_obstacles():
             ymax = 16.8
             y_pos = (ymax-ymin)*random.random()+ymin
         if all(euclidean_distance(coord,(x_pos,y_pos))>3.0 for coord in avoid_set):
-            cmd = cmd + 'rosrun gazebo_ros spawn_model -database drc_practice_blue_cylinder -gazebo -model debris' + str(num_spawned) + ' -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n'
+            model_name = "debris{}_{}".format(num_spawned, suff)
+            cmd += ('rosrun gazebo_ros spawn_model -database drc_practice_blue_cylinder\
+                    -gazebo -model ' + model_name + ' -x ' + str(x_pos) + ' -y ' + str(y_pos) + ' -Y 0.0\n')
             del_cmd = del_cmd + 'rosservice call gazebo/delete_model debris' + str(num_spawned) + '\n'
-            obstacles += ['debris' + str(num_spawned)]
+            obstacles += [model_name]
             avoid_set.append((x_pos, y_pos))
             num_spawned = num_spawned + 1
     os.system(cmd)
@@ -214,9 +226,9 @@ def spawn_obstacles():
 def delete_obstacles(del_cmd):
 	os.system(del_cmd)
 
-def barrier(letter):
+def barrier(letter, suff):
     cmd = "rosrun gazebo_ros spawn_model -database drc_practice_white_jersey_barrier\
-            -gazebo -model barrier_{} ".format(letter)
+            -gazebo -model barrier_{}_{} ".format(letter, suff)
 
     if letter == 'A':
         cmd += '-x 18.25 -y 17.521 -Y 1.571\n'
@@ -241,6 +253,6 @@ def barrier(letter):
         return '', '' 
 
     del_cmd = "rosservice call gazebo/delete_model barrier_{}\n".format(letter)
-    model_name = "barrier_{}".format(letter)
+    model_name = "barrier_{}_{}".format(letter, suff)
 
     return cmd, del_cmd, model_name
