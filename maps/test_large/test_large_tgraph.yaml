@@ -1,30 +1,30 @@
 !!python/object:networkx.classes.graph.Graph
-adj: &id033
+adj: &id034
   1:
     2: &id001 {}
     3: &id002 {}
     4: &id004 {}
     6: &id008 {}
-    s: &id029 {}
+    s: &id030 {}
   2:
     1: *id001
     3: &id003 {}
     4: &id005 {}
     7: &id009 {}
-    s: &id030 {}
+    s: &id031 {}
   3:
     1: *id002
     2: *id003
     4: &id006 {}
     5: &id007 {}
-    s: &id031 {}
+    s: &id032 {}
   4:
     1: *id004
     2: *id005
     3: *id006
     10: &id017 {}
     13: &id024 {}
-    s: &id032 {}
+    s: &id033 {}
   5:
     3: *id007
     8: &id011 {}
@@ -58,30 +58,33 @@ adj: &id033
     13: &id025 {}
   11:
     12: &id023 {}
-    13: &id026 {}
-    g: &id027 {}
+    14: &id026 {}
+    g: &id028 {}
   12:
     6: *id019
     7: *id020
     8: *id021
     9: *id022
     11: *id023
-    g: &id028 {}
+    g: &id029 {}
   13:
     4: *id024
     10: *id025
+    14: &id027 {}
+  14:
     11: *id026
+    13: *id027
   g:
-    11: *id027
-    12: *id028
+    11: *id028
+    12: *id029
   s:
-    1: *id029
-    2: *id030
-    3: *id031
-    4: *id032
-adjlist_dict_factory: &id034 !!python/name:__builtin__.dict ''
-edge: *id033
-edge_attr_dict_factory: *id034
+    1: *id030
+    2: *id031
+    3: *id032
+    4: *id033
+adjlist_dict_factory: &id035 !!python/name:__builtin__.dict ''
+edge: *id034
+edge_attr_dict_factory: *id035
 graph: {}
 node:
   1:
@@ -131,6 +134,10 @@ node:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
         AQIAAAACAAAAAAAAAAAA4D+amZmZmZkBQGZmZmZmZgZAmpmZmZmZAUA=
+  14:
+    defn: !!python/object/apply:shapely.geometry.linestring.LineString
+      state: !!binary |
+        AQIAAAACAAAAAAAAAAAAJEAAAAAAAADgPwAAAAAAACRAmpmZmZmZAUA=
   g:
     defn: !!python/object/apply:shapely.geometry.point.Point
       state: !!binary |
@@ -139,4 +146,4 @@ node:
     defn: !!python/object/apply:shapely.geometry.point.Point
       state: !!binary |
         AQEAAAAAAAAAAIAyQAAAAAAAgDJA
-node_dict_factory: *id034
+node_dict_factory: *id035
