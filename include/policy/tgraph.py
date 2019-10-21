@@ -185,25 +185,31 @@ class TGraph(object):
         # Sets edge state: if path is contained in edge polygon -> edge is unblocked
         # Also returns updated state of edge
 
+        '''
         # don't want to change edge state if it is already set to UNBLOCKED
+        #   ^ this is causing some serious issues, need to rethink
         if self.graph.edge[u][v]['state'] != self.UNBLOCKED:
             # if path is empty, planner failed to find a valid path so edge must be blocked
+            # ^ not true, sometimes it fails to find a path b/c robot's location is 'in'
+            # an obstacle. Wait for controller to abort to consider it blocked
             if path == []:
                 self.update_edge(u, v, self.BLOCKED)
             else:
-                path = LineString(path)
+        '''
+        if path != []:
+            path = LineString(path)
 
-                polygon = self.get_polygon(u,v)
-                infl_poly = polygon.buffer(padding)
-                logger.debug("Checking if path crosses the following: {}".format(infl_poly.bounds))
-                logger.debug("Path: {}".format(util.print_coord_list(path.coords)))
+            polygon = self.get_polygon(u,v)
+            infl_poly = polygon.buffer(padding)
+            logger.info("Checking if path crosses the following: {}".format(infl_poly.bounds))
+            logger.info("Path: {}".format(util.print_coord_list(path.coords)))
 
-                path_in_submap = infl_poly.contains(path)
+            path_in_submap = infl_poly.contains(path)
 
-                if path_in_submap and set_unblocked: 
-                    self.update_edge(u,v,self.UNBLOCKED)
-                elif not path_in_submap: 
-                    self.update_edge(u,v,self.BLOCKED)
+            if path_in_submap and set_unblocked: 
+                self.update_edge(u,v,self.UNBLOCKED)
+            elif not path_in_submap: 
+                self.update_edge(u,v,self.BLOCKED)
 
         return self.graph.edge[u][v]['state']
 
