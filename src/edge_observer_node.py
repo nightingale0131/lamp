@@ -142,19 +142,6 @@ class EdgeObserver():
         bounds = [submap.minx, submap.maxx, submap.miny, submap.maxy]
         rospy.loginfo("Submap height: {}, width: {}".format(submap.height, submap.width))
 
-        u_is_visible = self.visible(u)
-        v_is_visible = self.visible(v)
-
-        # if both vertices are visible, return UNBLOCKED, 
-        # if one vertex is visible and the other one is where we came from, return UNBLOCKED
-        # otherwise search for path
-
-        if u_is_visible and v_is_visible:
-            return TGraph.UNBLOCKED, -1
-        elif self.vprev == u and v_is_visible:
-            return TGraph.UNBLOCKED, -1
-        elif self.vprev == v and u_is_visible:
-            return TGraph.UNBLOCKED, -1
         (startx, starty) = self.base_graph.pos(u)
         (goalx, goaly) = self.base_graph.pos(v)
 
@@ -164,10 +151,25 @@ class EdgeObserver():
         rospy.loginfo("Robot leaving from {}".format(self.vprev))
         rospy.loginfo("Searching for path from {} to {}...".format(u,v))
 
+        # Shortcut 1
         # TODO: check if area around start or goal is not completely occupied
         if not (submap.passable(startpx) and submap.passable(goalpx)):
             rospy.loginfo("No path found because start or goal not valid!")
             return TGraph.BLOCKED, -1
+
+        # Shortcut 2
+        # if both vertices are in current visibility polygon, return UNBLOCKED, 
+        # if one vertex is visible and the other one is where we came from, return UNBLOCKED
+        # otherwise search for path
+        u_is_visible = self.visible(u)
+        v_is_visible = self.visible(v)
+
+        if u_is_visible and v_is_visible:
+            return TGraph.UNBLOCKED, -1
+        elif self.vprev == u and v_is_visible:
+            return TGraph.UNBLOCKED, -1
+        elif self.vprev == v and u_is_visible:
+            return TGraph.UNBLOCKED, -1
 
         # see if A* returns a valid path
         came_from, cost_so_far = util.a_star_search(submap, startpx, goalpx)
@@ -181,6 +183,12 @@ class EdgeObserver():
             return TGraph.BLOCKED, -1
 
         rospy.loginfo("Path FOUND!")
+
+        # if path is found, and both vertices were visible since the last submap change, 
+        # set edge to UNBLOCKED
+        if self.was_visible(u) and self.was_visible(v):
+            return TGraph.UNBLOCKED, path_length
+
         return TGraph.UNKNOWN, path_length 
 
     def set_visibility_polygon(self):
@@ -219,7 +227,7 @@ class EdgeObserver():
         result = False
 
         # debugging
-        rospy.logdebug("{} ({}) is visible: {}"
+        rospy.loginfo("{} ({}) is visible: {}"
                       .format(vertex, list(location.coords), v_is_visible))
 
         if v_is_visible:
@@ -227,15 +235,17 @@ class EdgeObserver():
                 rospy.loginfo("{} added to visible portals in submap".format(vertex))
                 self.vis_v_in_submap.add(vertex)
             result = True
-        elif vertex in self.vis_v_in_submap:
-            rospy.logdebug("{} was visible in submap".format(vertex))
-            # if vertex was visible at some point while traversing current submap
-            result = True
         else:
             result = False
 
-        rospy.loginfo("{} ({}) visibility: {}"
-                      .format(vertex, list(location.coords), result))
+        return result
+
+    def was_visible(self, vertex):
+        result = False
+        if vertex in self.vis_v_in_submap:
+            rospy.loginfo("{} was visible in submap".format(vertex))
+            # if vertex was visible at some point while traversing current submap
+            result = True
 
         return result
 
@@ -250,7 +260,12 @@ class EdgeObserver():
 
             rospy.logdebug(" {:.2f}, {:.2f}".format(x, y))
 
-        return sh.Polygon(boundary)
+        if boundary == []:
+            rospy.logwarn("Visibility polygon is empty! Using old vis polygon...")
+            # return prev visibility polygon 
+            return self.vis_poly
+        else:
+            return sh.Polygon(boundary)
 
     def point_to_tuple(self, point):
         return "({:.2f},{:.2f})".format(point.x, point.y)
