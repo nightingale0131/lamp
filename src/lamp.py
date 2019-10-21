@@ -3,7 +3,7 @@ __author__ = 'fiorellasibona' # repurposed code
 import logging
 logger = logging.getLogger(__name__) 
 import rospy, rospkg 
-import math 
+import math
 import os, glob
 import networkx as nx
 import numpy as np
@@ -11,6 +11,7 @@ import cv2
 from copy import copy
 
 import actionlib
+import control_gazebo as gz
 from policy.classes import Map
 from policy import utility as util
 from policy import rpp, tgraph
@@ -35,16 +36,17 @@ PKGDIR = rospkg.RosPack().get_path('policy')
 MAP = 'test_large'
 
 RESULTSFILE = PKGDIR + "/results/lrpp_results.dat"
-PADDING = 1 # how much to inflate convex region by (to allow for small localization
+PADDING = 1.2 # how much to inflate convex region by (to allow for small localization
             #   variations, must be greater than TOL
-TOL = 0.5 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
-NRETRIES = 5 # number of retries on naive mode before giving up execution
+TOL = 1 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
+NRETRIES = 3 # number of retries on naive mode before giving up execution
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
         # seq - list of vertices [v1, v2, ...]
         # base_map is map type
         rospy.init_node('lamp')
+        gz.pause()
 
         self.base_graph = base_graph
         self.poly_dict = polygon_dict
@@ -83,7 +85,7 @@ class LRPP():
         self.posearray_publisher = rospy.Publisher("waypoints", PoseArray, queue_size=1)
         self.v_publisher = rospy.Publisher("policy/current_edge", CurrEdge, queue_size=10)
         self.amcl_publisher = rospy.Publisher("initialpose", PoseWithCovarianceStamped,
-                queue_size=10, latch=True)
+                queue_size=1, latch=True)
 
         self.start_task("policy")
         rospy.spin()
@@ -149,22 +151,38 @@ class LRPP():
         # Cancel all goals to move_base
         self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
 
-        self.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
-        rospy.sleep(1)
-        self.set_amcl_pose() # Set initial guess for amcl back to start
+        gz.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
 
-        # Set up any obstacles if starting a new task
         if mode == "policy" and redo == False:
-            # self.del_cmd = spawn_obstacles()
+            # Ensure all non-permanent obstacles have been removed
+            model_names = gz.get_model_names()
+            do_not_delete = ['jackal', 'Wall', 'ground']
+            delete_these = []
+            for model in model_names:
+                for forbidden in do_not_delete:
+                    if forbidden in model: break
+                else:
+                    delete_these.append(model)
+
+            for model in delete_these: 
+                gz.delete_obstacle(model)
+
+            # Set up any obstacles if starting a new task
             self.task_obstacles = spawn_obstacles()
 
-        rospy.loginfo("Finished environment setup. Clearing cost map...")
-        rospy.sleep(5)
+        rospy.loginfo("Finished environment setup.\n Resuming gazebo...")
 
         # reset costmap using service /move_base/clear_costmaps
+        gz.resume()
+        rospy.sleep(0.5) # give time for transforms to adjust 
+
+        rospy.loginfo("Re-initialize AMCL pose...")
+        self.set_amcl_pose() # Set initial guess for amcl back to start
+        rospy.sleep(2) # give time for amcl to initialize 
+
+        rospy.loginfo("Clearing costmap...")
         self.clear_costmap_client()
         self.reset_travel_dist()
-        rospy.sleep(2) # give some time to make sure costmap is cleared before starting
 
         # double check connection with move base
         self.check_connection()
@@ -186,6 +204,7 @@ class LRPP():
         self.set_and_send_next_goal()
 
     def finish_task(self, err=False):
+        gz.pause() # pause simulation
         task_time = rospy.Time.now() - self.task_start_time
 
         # open results file
@@ -227,6 +246,7 @@ class LRPP():
 
                 f.write(line)
 
+            '''
             # print weights
             f.write("\n\n Map weights")
             for edge in self.base_graph.edges():
@@ -236,6 +256,7 @@ class LRPP():
                     line += "{:8.3f}".format(m.G.weight(u,v))
 
                 f.write(line)
+            '''
 
             f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
             f.write("\nPolicy      {:9.3f}               {}"
@@ -254,8 +275,7 @@ class LRPP():
 
             # clear all non-static obstacles
             for model in self.task_obstacles:
-                self.delete_obstacle(model)
-            # delete_obstacles(self.del_cmd)
+                gz.delete_obstacle(model)
 
             # increment task counter
             self.tcount +=1
@@ -678,19 +698,6 @@ class LRPP():
         except rospy.ServiceException, e:
             rospy.logerr("Service call failed: {}".format(e))
 
-    def set_robot_pose(self, x, y, yaw):
-        # service client for setting robot pose in gazebo
-        model_state = ModelState("jackal",
-                Pose(Point(x,y,1),Quaternion(*(quaternion_from_euler(0,0,yaw)))),
-                Twist(Vector3(0,0,0), Vector3(0,0,0)), "map")
-
-        rospy.wait_for_service('gazebo/set_model_state')
-        try:
-            set_model_state = rospy.ServiceProxy('gazebo/set_model_state', SetModelState)
-            set_model_state(model_state)
-        except rospy.ServiceException, e:
-            rospy.logerr("Service call failed: {}".format(e))
-
     def set_amcl_pose(self):
         # set initial position for amcl
         init_pose = PoseWithCovarianceStamped()
@@ -699,30 +706,11 @@ class LRPP():
         init_pose.pose.covariance = np.zeros(36)
         init_pose.pose.covariance[0] = 0.25
         init_pose.pose.covariance[7] = 0.25
-        init_pose.pose.covariance[35] = 0.05
+        init_pose.pose.covariance[35] = 0.1
         init_pose.header.stamp = rospy.Time.now()
         init_pose.header.frame_id = "map"
 
         self.amcl_publisher.publish(init_pose)
-
-    def get_robot_pose(self, model):
-        # service client for getting robot pose in gazebo
-        rospy.wait_for_service('gazebo/get_model_state')
-        try:
-            get_model_state = rospy.ServiceProxy('gazebo/get_model_state', GetModelState)
-            state = get_model_state(model, "world")
-            return (state.pose.position.x, state.pose.position.y)
-        except rospy.ServiceException, e:
-            rospy.logerr("Service call failed: {}".format(e))
-
-    def delete_obstacle(self, model_name):
-        # service client for deleting obstacle in gazebo
-        rospy.wait_for_service('gazebo/delete_model')
-        try:
-            delete = rospy.ServiceProxy('gazebo/delete_model', DeleteModel)
-            delete(model_name)
-        except rospy.ServiceException, e:
-            rospy.logerr("Service call failed: {}".format(e))
 
 def to_2d_path(rospath):
     # rospath - ros path message, seq of stamped poses
@@ -743,7 +731,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     # set number of tasks
-    ntasks = 50
+    ntasks = 40 
 
     # run LRPP
     try:
