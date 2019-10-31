@@ -718,10 +718,10 @@ class LRPP():
     def get_range(self):
         # Get obstacle range and raytrace range parameters
         # In this fn to keep initialization as clean as possible
-        obstacle_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/\
-                obstacle_range')
-        raytrace_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/\
-                raytrace_range')
+        obstacle_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/'\
+                'obstacle_range')
+        raytrace_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/'\
+                'raytrace_range')
 
         return min(obstacle_range, raytrace_range)
 
