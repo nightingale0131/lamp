@@ -77,36 +77,36 @@ def costfn3(known_cost_to_v, v, u, goal, knownG, outcomes, supermaps, p_Xy, robo
     Takes into account that submaps are convex, uses that to give better cost estimate.
     Supermaps[i].G must be TGraph class object!
     '''
-    supermaps[0].G = tg  # use this to get polygon, all of the supermaps should be identical
-    edge_est = G.min_mid_dist(v,u)
+    tg = supermaps[0].G # use this to get polygon, all of the supermaps should be identical
+    edge_est = tg.min_mid_dist(v,u)
     unblocked_est = max(0, edge_est - (robot_range/2.0)) # Exp travel along edge before
                                                          # obsving edge is unblocked 
-    line = LineString([G.pos(u), G.pos(v)])
+    line = LineString([tg.pos(u), tg.pos(v)])
     midpt = line.centroid
     o_pt = line.interpolate(unblocked_est)
 
     # get all known unblocked edges from v in S(u,v)
     unblocked_local_vlist = []
     for vertex in tg.get_vertices_in_polygon(tg.get_polygon(v,u)):
-        if knownG[v][vertex]['weight'] != float('inf') or v == vertex:
+        if v == vertex or knownG[v][vertex]['weight'] != float('inf'):
             unblocked_local_vlist.append(vertex)
 
     # Currently it's only possible to have 2 outcomes
     # All the variables should return something, because if all other vertices are
     # blocked, it should return v as ub and uu
     for outcome in outcomes:
-        if outcome.state == supermaps[0].G.BLOCKED:
+        if outcome.state == tg.BLOCKED:
             blocked_p = outcome.p 
-            blocked_exp_cost, ub = min_expcost(midpt, goal, unblocked_local_vlist,
+            blocked_exp_cost, ub = min_exp_cost(midpt, goal, unblocked_local_vlist,
                     outcome, supermaps, p_Xy)
-        elif outcome.state == supermaps[0].G.UNBLOCKED:
+        elif outcome.state == tg.UNBLOCKED:
             unblocked_p = outcome.p
             # calc expected cost from end_u
-            unblocked_exp_cost, uu = min_expcost(o_pt, goal, unblocked_local_vlist,
+            unblocked_exp_cost, uu = min_exp_cost(o_pt, goal, unblocked_local_vlist,
                     outcome, supermaps, p_Xy)
 
     exp_cost = (known_cost_to_v + blocked_p*blocked_exp_cost +
-            unblocked_p*(unblocked_exp_cost + edge_cost))
+            unblocked_p*unblocked_exp_cost)
 
     return (uu, ub, exp_cost) 
 
@@ -121,7 +121,7 @@ def min_exp_cost(est_loc, goal, ulist, outcome, supermaps, p_Xy):
 
     Return min_exp_cost, min_u
     '''
-    supermaps[0].G = tg 
+    tg = supermaps[0].G
     min_u = None
     min_expcost = 0
 
