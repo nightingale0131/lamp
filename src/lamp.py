@@ -71,6 +71,7 @@ class LRPP():
         self.M = [self.base_map] # initialize map storage
         self.T = T  # number of tasks to execute
         self.tcount = 1 # current task being executed
+        self.range = self.get_range()
 
         self.suspend = False # flag to temporarily suspend plan & edge callbacks
         self.path_blocked = False # flag for path being blocked, calls reactive algo
@@ -130,6 +131,8 @@ class LRPP():
             self.set_new_path(paths['g'])
 
         elif mode == "naive":
+            # clear waypoint arrows
+            self.posearray_publisher.publish(self.conv_to_PoseArray([]))
             self.node = None
             self.vprev = 's'
             self.vnext = 'g'
@@ -576,7 +579,7 @@ class LRPP():
         vnext = self.vnext
         vcurr = self.vprev
 
-        if len(data.poses) > 0:
+        if len(data.poses) > 0 and not self.suspend:
             plan_dest = (data.poses[-1].pose.position.x, data.poses[-1].pose.position.y)
 
             if not (vnext == vcurr or self.path_blocked or 
@@ -646,7 +649,7 @@ class LRPP():
         elif self.mode == "openloop":
             self.curr_graph.update_edge(u, v, data.state)
 
-        if data.state == self.base_map.G.BLOCKED:
+        if data.state == self.base_map.G.BLOCKED and not self.suspend:
             # if robot is not already replanning and the blocked edge is not under observation, 
             if not (self.path_blocked or self.edge_under_observation(u,v) or self.suspend):
                 for i, v_i in enumerate(self.path):
@@ -712,6 +715,16 @@ class LRPP():
 
         self.amcl_publisher.publish(init_pose)
 
+    def get_range(self):
+        # Get obstacle range and raytrace range parameters
+        # In this fn to keep initialization as clean as possible
+        obstacle_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/\
+                obstacle_range')
+        raytrace_range = rospy.get_param('/move_base/global_costmap/obstacles_layer/scan/\
+                raytrace_range')
+
+        return min(obstacle_range, raytrace_range)
+
 def to_2d_path(rospath):
     # rospath - ros path message, seq of stamped poses
     path = []
@@ -731,7 +744,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     # set number of tasks
-    ntasks = 40 
+    ntasks = 10 
 
     # run LRPP
     try:
