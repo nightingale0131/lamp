@@ -40,6 +40,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
             #   variations, must be greater than TOL
 TOL = 1 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
+COSTFN = 1 # which costfunction to use
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -106,7 +107,7 @@ class LRPP():
             rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
             self.p = mf.update_p_est(self.M, self.tcount) 
             self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g',
-                    self.range)
+                    robot_range=self.range, costfn=COSTFN)
             rospy.loginfo(self.policy[0].print_policy())
 
         # set robot location
@@ -213,6 +214,9 @@ class LRPP():
 
         # open results file
         f = open(RESULTSFILE, "a")
+
+        if self.tcount == 1 and err == False and self.mode == policy:
+            f.write("\nUsing costfn {}".format(COSTFN)) # only once at beginning of file
 
         if self.mode == "policy" or self.mode == "openloop":
             # unsubscribe from plan and map

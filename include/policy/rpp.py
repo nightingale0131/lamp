@@ -10,7 +10,7 @@ Contains main RPP solvers and additional functions
 #!/usr/bin/env python2
 import logging
 logger = logging.getLogger(__name__)
-import timing # measures runtime
+# import timing # measures runtime
 import sys
 import math
 import networkx as nx
@@ -19,64 +19,23 @@ from collections import deque # queue class
 from copy import deepcopy
 
 import tgraph
-from gridgraph import GridGraph 
+# from gridgraph import GridGraph 
 from classes import Cost, Node, Outcome, Observation
 # from dijkstra import dijkstra
 from utility import isclose, euclidean_distance
+import costfns as cf
 
-def get_knownG(features, supermaps, belief):
-    """
-        Inputs: list of all possible features in list of supermaps
-                Supermap list M = [M0, M1, ...]
-
-        Output: knownG - same type as supermaps.G, updated for this node
-    """
-    logger.info("Updating knownG...")
-    base_map = supermaps[0]
-    # knownG=type(base_map.G.graph)(base_map.G) # use same type as Map.G
-    knownG=nx.Graph()
-    knownG.add_nodes_from(base_map.G.vertices())
-    # all feature states are unknown
-
-    # compare features for all supermaps
-    # features should be same type as keys in dict returned by supermaps.G.observe
-    known_features = {}
-    for feature in features:
-        # logger.debug("Checking {}".format(feature))
-        state = None
-        is_known = True
-        for i in belief:
-            new_state = supermaps[i].feature_state(feature)
-
-            if new_state != base_map.G.UNKNOWN:
-                if state == None: state = new_state
-                if state != None and new_state != state: is_known = False
-
-        # if feature state is blocked in one supermap but unblocked in another supermap in
-        # the belief, then it can't be in knownG.
-        # if feature state is unknown in all beliefs, then add it to knownG so I can use
-        # it
-
-        # if is_known: known_features[feature] = state
-        (a,b) = feature
-        knownG.add_edge(a,b)
-        if is_known and state != base_map.G.BLOCKED: 
-            # assuming feature is an edge that looks like (a,b)
-            knownG[a][b]['weight'] = base_map.G.weight(a,b) 
-        else:
-            knownG[a][b]['weight'] = float('inf')
-
-    # logger.debug("known features = {}".format(known_features))
-    logger.debug(nx.info(knownG))
-    return knownG
-
-def solve_RPP(M, p, features, start, goal):
-    """ This is the modified version for LRPP
+def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
+    """ This is the modified version for LRPP 
         What's changed:
-            - G is M = [(Eb,Eu,n),...] (supermap set from LRPP)
-              Similar to G, no modifications should be made to this data here!
-            - cost_to_goal is calculated outside of this solver, by LRPP, and updated
-            - list of features is calculated outside of solver
+            - M: list of Map class objects (supermaps)
+            - p: list of probabilities of each supermap
+            - features: union of all features in each supermap (for future when we aren't
+              using just edges as observations)
+            - start: start vertex, should match key in M[i].G
+            - goal:  goal vertex, should match key in M[i].G 
+            - robot_range (optional): range of robot, only needed if using costfn3
+            - costfn: sets which costfn to use [1,2,3]
     """
     logger.info('Running solve_RPPv2')
     if len(M) != len(p): sys.exit('solve_RPP failed: # supermaps and # prob mismatch.') 
@@ -133,7 +92,8 @@ def solve_RPP(M, p, features, start, goal):
             c_knownG = Cost(cost, paths)
 
             # compute R ----------------------------------------
-            R, D = useful_features( features, M, p_Xy, c_knownG, Y, goal )
+            R, D = useful_features( features, M, p_Xy, c_knownG, Y, goal, robot_range,
+                    costfn )
             # R - [(O1,v1), (O2, v2), ...]
             # D - {v1: cost_v1, v2: cost_v2, ...}
             logger.debug('R = {}'.format(str(R)))
@@ -223,7 +183,48 @@ def solve_RPP(M, p, features, start, goal):
 
     return policy
 
-def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
+def get_knownG(features, supermaps, belief):
+    logger.info("Updating knownG...")
+    base_map = supermaps[0]
+    # knownG=type(base_map.G.graph)(base_map.G) # use same type as Map.G
+    knownG=nx.Graph()
+    knownG.add_nodes_from(base_map.G.vertices())
+    # all feature states are unknown
+
+    # Compare features for all supermaps
+    # Features should be same type as keys in dict returned by supermaps.G.observe
+    known_features = {}
+    for feature in features:
+        # logger.debug("Checking {}".format(feature))
+
+        # If feature state is blocked in one supermap but unblocked in another supermap in
+        # the belief, then it can't be in knownG.
+        # If feature state is unknown in all beliefs, then add it to knownG so I can use
+        # it
+        state = None
+        is_known = True
+        for i in belief:
+            new_state = supermaps[i].feature_state(feature)
+
+            if new_state != base_map.G.UNKNOWN:
+                if state == None: state = new_state
+                if state != None and new_state != state: is_known = False
+
+        # if is_known: known_features[feature] = state
+        (a,b) = feature
+        knownG.add_edge(a,b)
+        if is_known and state != base_map.G.BLOCKED: 
+            # assuming feature is an edge that looks like (a,b)
+            knownG[a][b]['weight'] = base_map.G.weight(a,b) 
+        else:
+            knownG[a][b]['weight'] = float('inf')
+
+    # logger.debug("known features = {}".format(known_features))
+    logger.debug(nx.info(knownG))
+    return knownG
+
+def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal, robot_range,
+        costfn ):
     """
     Compute Rv
     Calculate set of reachable and constructive observations
@@ -321,21 +322,15 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
                     start_u = u2
                     end_u = u1
 
-                # currently it's only possible to have 2 outcomes
-                for outcome in o.outcomes:
-                    if outcome.state == supermaps[0].G.BLOCKED:
-                        blocked_p = outcome.p 
-                        blocked_exp_cost = expected_cost(goal, start_u,
-                                outcome, supermaps, p_Xy) 
-                        # calc expected cost from start_u
-                    elif outcome.state == supermaps[0].G.UNBLOCKED:
-                        unblocked_p = outcome.p
-                        # calc expected cost from end_u
-                        unblocked_exp_cost = expected_cost(goal, end_u,
-                                outcome, supermaps, p_Xy) 
-
-                travel_cost = (reachable[v] + blocked_p*blocked_exp_cost +
-                        unblocked_p*(unblocked_exp_cost + edge_cost))
+                # Select cost function
+                if costfn == 1:
+                    travel_cost = cf.costfn1(reachable[v], start_u, goal, belief, supermaps,
+                            p_Xy)
+                elif costfn == 2:
+                    travel_cost = cf.costfn2(reachable[v], start_u, end_u, goal, o.outcomes,
+                            supermaps, p_Xy) 
+                elif costfn == 3:
+                    travel_cost = cf.costfn3()
 
                 logger.info("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
                         .format(c_knownG.cost[goal], v, travel_cost))
@@ -350,45 +345,3 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal ):
     logger.debug('D = {}'.format(D))
     logger.info("Completed calculating set of constructive and reachable obsv pairs!")
     return R, D
-
-def expected_cost(u, v, outcome, supermaps, p_Xy):
-    exp_cost = 0
-    for i in outcome.Yo:
-        # nx.dijkstra doesn't return nodes in clusters that are disconnected
-        # so if it's not in get_cost, then just set cost_to_goal as infinity (temp
-        # workaround, hopefully there's a better solution
-        try:
-            cost_in_i = supermaps[i].get_cost(u, v)
-        except KeyError:
-            cost_in_i = float('inf')
-        if cost_in_i < float('inf'):
-            '''
-            In RPP, the robot will stop at the observation once it believes there is
-            no path to goal, but in LRPP, since we do not know all possible environment
-            configurations, if the policy determines there is no path to
-            goal, the robot still has to exhaustively check every possible path to
-            goal.
-
-            Does it make sense to ignore the cost of a no goal when
-            calculating the policy? 
-            I think so, if there is a supermap with
-            no possible path to goal, it'll just inflate the cost of EVERY
-            observation in constrO. Unless I can somehow calculate the
-            actual cost of the reactive planner to determine no goal, then I
-            can pick better observations to minimize that path
-            '''
-            logger.debug("cost_in_{}={:.2f}".format(i, cost_in_i))
-            exp_cost += cost_in_i*p_Xy[i]/outcome.p
-
-    for i in outcome.unknown:
-        try:
-            cost_in_i = supermaps[i].get_cost(u, v)
-        except KeyError:
-            cost_in_i = float('inf')
-        if cost_in_i < float('inf'):
-            logger.debug("cost_in_{}={:.2f}".format(i, cost_in_i))
-            exp_cost += cost_in_i*p_Xy[i]
-
-    logger.debug("exp_cost from {} to {}: {:.2f}".format(u,v,exp_cost))
-
-    return exp_cost
