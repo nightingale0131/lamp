@@ -105,7 +105,8 @@ class LRPP():
         if mode == "policy":
             rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
             self.p = mf.update_p_est(self.M, self.tcount) 
-            self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g')
+            self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g',
+                    self.range)
             rospy.loginfo(self.policy[0].print_policy())
 
         # set robot location
