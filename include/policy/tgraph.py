@@ -201,8 +201,8 @@ class TGraph(object):
 
             polygon = self.get_polygon(u,v)
             infl_poly = polygon.buffer(padding)
-            logger.info("Checking if path crosses the following: {}".format(infl_poly.bounds))
-            logger.info("Path: {}".format(util.print_coord_list(path.coords)))
+            logger.debug("Checking if path crosses the following: {}".format(infl_poly.bounds))
+            logger.debug("Path: {}".format(util.print_coord_list(path.coords)))
 
             path_in_submap = infl_poly.contains(path)
 

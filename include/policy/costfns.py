@@ -6,6 +6,8 @@ Different cost functions to try
 '''
 import logging
 logger = logging.getLogger(__name__)
+from shapely.geometry import LineString
+import utility as util
 
 def costfn1(known_cost_to_v, v, goal, belief, supermaps, p_Xy):
     # assumes edge state can be viewed from either endpt
@@ -70,13 +72,68 @@ def costfn2(known_cost_to_v, v, u, goal, outcomes, supermaps, p_Xy):
     return (known_cost_to_v + blocked_p*blocked_exp_cost +
             unblocked_p*(unblocked_exp_cost + edge_cost))
 
-def costfn3(known_cost_to_v, v, u, goal, outcomes, supermaps, p_Xy, robot_range):
+def costfn3(known_cost_to_v, v, u, goal, knownG, outcomes, supermaps, p_Xy, robot_range):
     '''
     Takes into account that submaps are convex, uses that to give better cost estimate.
     Supermaps[i].G must be TGraph class object!
     '''
+    supermaps[0].G = tg  # use this to get polygon, all of the supermaps should be identical
+    edge_est = G.min_mid_dist(v,u)
+    unblocked_est = max(0, edge_est - (robot_range/2.0)) # Exp travel along edge before
+                                                         # obsving edge is unblocked 
+    line = LineString([G.pos(u), G.pos(v)])
+    midpt = line.centroid
+    o_pt = line.interpolate(unblocked_est)
 
-    return
+    # get all known unblocked edges from v in S(u,v)
+    unblocked_local_vlist = []
+    for vertex in tg.get_vertices_in_polygon(tg.get_polygon(v,u)):
+        if knownG[v][vertex]['weight'] != float('inf') or v == vertex:
+            unblocked_local_vlist.append(vertex)
+
+    # Currently it's only possible to have 2 outcomes
+    # All the variables should return something, because if all other vertices are
+    # blocked, it should return v as ub and uu
+    for outcome in outcomes:
+        if outcome.state == supermaps[0].G.BLOCKED:
+            blocked_p = outcome.p 
+            blocked_exp_cost, ub = min_expcost(midpt, goal, unblocked_local_vlist,
+                    outcome, supermaps, p_Xy)
+        elif outcome.state == supermaps[0].G.UNBLOCKED:
+            unblocked_p = outcome.p
+            # calc expected cost from end_u
+            unblocked_exp_cost, uu = min_expcost(o_pt, goal, unblocked_local_vlist,
+                    outcome, supermaps, p_Xy)
+
+    exp_cost = (known_cost_to_v + blocked_p*blocked_exp_cost +
+            unblocked_p*(unblocked_exp_cost + edge_cost))
+
+    return (uu, ub, exp_cost) 
+
+def min_exp_cost(est_loc, goal, ulist, outcome, supermaps, p_Xy): 
+    '''
+    est_loc - shapely Point class object
+    goal    - vertex
+    ulist   - list of vertices
+    outcome - Outcome class object
+    supermaps - list of Map class objects
+    p_Xy - p(X = i|Y), probability of being in map i given the belief Y
+
+    Return min_exp_cost, min_u
+    '''
+    supermaps[0].G = tg 
+    min_u = None
+    min_expcost = 0
+
+    for u in ulist:
+        dist = util.euclidean_distance((est_loc.x, est_loc.y), tg.pos(u))
+        expcost = dist + expected_cost_outcome(u, goal, outcome, supermaps, p_Xy)
+
+        if min_u == None or expcost < min_expcost:
+            min_u = u
+            min_expcost = expcost
+
+    return min_expcost, min_u
 
 def expected_cost_outcome(v, u, outcome, supermaps, p_Xy):
     # calculate expected cost based on outcome probabilities

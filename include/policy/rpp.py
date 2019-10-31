@@ -92,9 +92,9 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
             c_knownG = Cost(cost, paths)
 
             # compute R ----------------------------------------
-            R, D = useful_features( features, M, p_Xy, c_knownG, Y, goal, robot_range,
+            R, D = useful_features( features, M, p_Xy, c_knownG, knownG, Y, goal, robot_range,
                     costfn )
-            # R - [(O1,v1), (O2, v2), ...]
+            # R - [(O1,v1,uu1,ub1), (O2,v2,uu2,ub2), ...]
             # D - {v1: cost_v1, v2: cost_v2, ...}
             logger.debug('R = {}'.format(str(R)))
 
@@ -110,8 +110,8 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
                 minScore = float('inf') # result of eqn 10
                 for item in R:
                     # calculate entropy of each observation
-                    (obsv, v) = item
-                    logger.debug('Calculating entropy of ({},{})'.format(obsv.E,v))
+                    (obsv, u, uu, ub) = item
+                    logger.debug('Calculating entropy of ({},{})'.format(obsv.E,u))
 
                     H = 0 # negated conditional entropy
                     for outcome in obsv.outcomes:
@@ -139,28 +139,21 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
                         H += outcome.p*h
 
                     H = -H
-                    score = D[v]*H
+                    score = D[u]*H
                     logger.info('({},{})  Entropy: {:.4f}  Score: {:.4f}'
-                            .format(obsv.E, v, H,score))
+                            .format(obsv.E, u, H,score))
                     if score < minScore:
                         minScore = score
-                        minO = (obsv, v, D[v])
+                        minO = (obsv, u, D[u], uu, ub)
 
                     # in the event of multiple observations score = 0, select (O, v) w/ 
                     #   least expected cost to goal if we go to v
                     if score == 0 and minScore == 0:
-                        if D[v] < minO[2]:
-                            minO = (obsv, v, D[v])
+                        if D[u] < minO[2]:
+                            minO = (obsv, u, D[u], uu, ub)
 
-                (min_o, min_u, min_cost) = minO
-                logger.info("MinO: ({}, {})".format(min_o.E, min_u))
-
-                (u1, u2) = min_o.E # assuming feature is an edge
-                if u1 == min_u: unblocked_u = u2
-                elif u2 == min_u: unblocked_u = u1
-                else: 
-                    raise Exception("min_u ({}) is neither u1 ({}) or u2 ({})!"
-                        .format(min_u, u1, u2))
+                (min_o, min_u, min_cost, min_uu, min_ub) = minO
+                logger.info("MinO: ({}, {}, {}, {})".format(min_o.E, min_u, min_uu, min_ub))
 
                 minObservation = deepcopy(min_o)
 
@@ -174,10 +167,9 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
                     new_node.add_outcome(policy[-1])
 
                     if outcome.state == base_map.G.BLOCKED:
-                        # starting vertex is beginning of edge
-                        Q.append((outcome.new_belief(),min_u,policy[-1]))
+                        Q.append((outcome.new_belief(),min_ub,policy[-1]))
                     elif outcome.state == base_map.G.UNBLOCKED:
-                        Q.append((outcome.new_belief(),unblocked_u,policy[-1]))
+                        Q.append((outcome.new_belief(),min_uu,policy[-1]))
                     else:
                         raise Exception("State of outcome is not blocked or unblocked!")
 
@@ -223,7 +215,7 @@ def get_knownG(features, supermaps, belief):
     logger.debug(nx.info(knownG))
     return knownG
 
-def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal, robot_range,
+def useful_features( features, supermaps, p_Xy, c_knownG, knownG, belief, goal, robot_range,
         costfn ):
     """
     Compute Rv
@@ -323,14 +315,19 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal, robot_ra
                     end_u = u1
 
                 # Select cost function
+                uu = v # vertex robot is at if (v,u) is unblocked
+                ub = v # vertex robot is at if (v,u) is blocked
                 if costfn == 1:
                     travel_cost = cf.costfn1(reachable[v], start_u, goal, belief, supermaps,
                             p_Xy)
                 elif costfn == 2:
                     travel_cost = cf.costfn2(reachable[v], start_u, end_u, goal, o.outcomes,
                             supermaps, p_Xy) 
+                    uu = end_u
+                    ub = start_u
                 elif costfn == 3:
-                    travel_cost = cf.costfn3()
+                    (uu, ub, travel_cost) = cf.costfn3(reachable[v], start_u, end_u, goal, 
+                            knownG, o.outcomes, supermaps, p_Xy, robot_range) 
 
                 logger.info("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
                         .format(c_knownG.cost[goal], v, travel_cost))
@@ -339,7 +336,7 @@ def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal, robot_ra
                         isclose(c_knownG.cost[goal], travel_cost))):
                     # need this because isclose(inf, 10) returns True
                     # to reach this point cost_v must be a finite number
-                    R.append((o,v))
+                    R.append((o,v,uu,ub))
                     D[v] = travel_cost 
 
     logger.debug('D = {}'.format(D))

@@ -40,7 +40,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
             #   variations, must be greater than TOL
 TOL = 1 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
-COSTFN = 1 # which costfunction to use
+COSTFN = 3 # which costfunction to use
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -215,7 +215,7 @@ class LRPP():
         # open results file
         f = open(RESULTSFILE, "a")
 
-        if self.tcount == 1 and err == False and self.mode == policy:
+        if self.tcount == 1 and err == False and self.mode == "policy":
             f.write("\nUsing costfn {}".format(COSTFN)) # only once at beginning of file
 
         if self.mode == "policy" or self.mode == "openloop":
