@@ -137,7 +137,7 @@ node:
   14:
     defn: !!python/object/apply:shapely.geometry.linestring.LineString
       state: !!binary |
-        AQIAAAACAAAAAAAAAAAAJEAAAAAAAADgPwAAAAAAACRAmpmZmZmZAUA=
+        AQIAAAACAAAAAAAAAAAAJEAAAAAAAADgvwAAAAAAACRAmpmZmZmZAUA=
   g:
     defn: !!python/object/apply:shapely.geometry.point.Point
       state: !!binary |
