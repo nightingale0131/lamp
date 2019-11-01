@@ -158,7 +158,14 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
                 minObservation = deepcopy(min_o)
 
                 # set node observation, state, and path
+                path_to_obsv = c_knownG.paths[min_u]
+                (u1, u2) = min_o.E
+                if u1 == min_u: path_to_obsv.append(u2)
+                else: path_to_obsv.append(u1)
+                new_node.add_leg(min_u,minObservation,path_to_obsv)
+                '''
                 new_node.add_leg(min_u,minObservation,c_knownG.paths[min_u])
+                '''
 
                 # Add new children nodes and add those to the queue
                 # For LAMP, there's only two possible outcomes: blocked/unblocked

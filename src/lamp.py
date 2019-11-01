@@ -38,9 +38,10 @@ MAP = 'test_large'
 RESULTSFILE = PKGDIR + "/results/lrpp_results.dat"
 PADDING = 1.2 # how much to inflate convex region by (to allow for small localization
             #   variations, must be greater than TOL
-TOL = 1 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
+TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
 COSTFN = 3 # which costfunction to use
+NTASKS = 30 # number of tasks to execute in trial
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -69,7 +70,9 @@ class LRPP():
             base_tgraph.set_edge_state(u,v,base_tgraph.UNBLOCKED)
         self.base_map = Map(base_tgraph)
         self.features = self.base_map.features()
-        self.M = [self.base_map] # initialize map storage
+        # store the different M for each costfn
+        self.costfnM = [[self.base_map],[self.base_map],[self.base_map]] 
+        self.M = self.costfnM[0] # initialize map storage
         self.T = T  # number of tasks to execute
         self.tcount = 1 # current task being executed
         self.range = self.get_range()
@@ -81,6 +84,7 @@ class LRPP():
         self.mode = None # what kind of policy to follow (policy, openloop, naive)
         self.retries_left = NRETRIES
         self.localization_err = False
+        self.costfn = 1 # costfn to use (dynamically cycle through them)
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
@@ -104,10 +108,12 @@ class LRPP():
         self.localization_err = False
 
         if mode == "policy":
-            rospy.loginfo("Calculating policy for task {}...".format(self.tcount))
-            self.p = mf.update_p_est(self.M, self.tcount) 
+            rospy.loginfo("Calculating policy for task {} using costfn {}..."
+                    .format(self.tcount, self.costfn))
+            self.M = self.costfnM[self.costfn-1]
+            self.p = mf.update_p_est(self.M, self.tcount)
             self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g',
-                    robot_range=self.range, costfn=COSTFN)
+                    robot_range=self.range, costfn=self.costfn)
             rospy.loginfo(self.policy[0].print_policy())
 
         # set robot location
@@ -158,7 +164,7 @@ class LRPP():
 
         gz.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
 
-        if mode == "policy" and redo == False:
+        if mode == "policy" and self.costfn == 1 and redo == False:
             # Ensure all non-permanent obstacles have been removed
             model_names = gz.get_model_names()
             do_not_delete = ['jackal', 'Wall', 'ground']
@@ -215,9 +221,6 @@ class LRPP():
         # open results file
         f = open(RESULTSFILE, "a")
 
-        if self.tcount == 1 and err == False and self.mode == "policy":
-            f.write("\nUsing costfn {}".format(COSTFN)) # only once at beginning of file
-
         if self.mode == "policy" or self.mode == "openloop":
             # unsubscribe from plan and map
             self.plan_subscriber.unregister()
@@ -230,14 +233,18 @@ class LRPP():
             self.start_task(self.mode, redo=True)
             return
 
+        # if self.tcount == 1 and err == False and self.mode == "policy":
+            # f.write("\nUsing costfn {}".format(COSTFN)) # only once at beginning of file
+
         if self.mode == "policy":
-            next_mode = "openloop"
             # run map filter
             info = self.save_map_and_filter()
 
             # write
-            f.write("\nFinished executing task {}".format(self.tcount))
+            f.write("\n==============================")
+            f.write("\nTask {}".format(self.tcount))
             f.write("\nEntered openloop: {}".format(self.entered_openloop))
+            f.write("\nUsing costfn {}".format(self.costfn))
 
             f.write(self.policy[0].print_policy())
             f.write("\n\nMap agreed with: {}, Map merge: {}"
@@ -267,8 +274,15 @@ class LRPP():
             '''
 
             f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
-            f.write("\nPolicy      {:9.3f}               {}"
-                    .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
+            f.write("\nPolicy {}    {:9.3f}               {}"
+                    .format(self.costfn, self.travelled_dist, util.secondsToStr(task_time.to_sec())))
+
+            if self.costfn == 3:
+                next_mode = "openloop"
+                self.costfn = 1
+            else:
+                next_mode = "policy"
+                self.costfn += 1
 
         elif self.mode == "openloop":
             next_mode = "naive"
@@ -279,7 +293,7 @@ class LRPP():
             next_mode = "policy"
             f.write("\nNaive       {:9.3f}               {}"
                     .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
-            f.write("\n==============================")
+            # f.write("\n==============================")
 
             # clear all non-static obstacles
             for model in self.task_obstacles:
@@ -397,15 +411,18 @@ class LRPP():
         # check if observation has been satisfied
         if self.node != None and self.node.opair != None:
             (u,v) = self.node.opair.E 
+
+            rospy.loginfo("Observing ({},{})...".format(u,v))
             state = self.curr_graph.edge_state(u,v)
             obsv_poly = self.curr_graph.get_polygon(u,v)
             if state != self.base_map.G.UNKNOWN and self.curr_submap == obsv_poly:
                 if state == self.base_map.G.UNBLOCKED: 
-                    rospy.loginfo("Edge ({},{}) is UNBLOCKED! Moving to next node...".format(u,v))
+                    rospy.loginfo("   UNBLOCKED! Moving to next node...".format(u,v))
                 else: 
-                    rospy.loginfo("Edge ({},{}) is BLOCKED! Moving to next node...".format(u,v))
+                    rospy.loginfo("   BLOCKED! Moving to next node...".format(u,v))
                 return True
             else:
+                rospy.loginfo("   UNKNOWN".format(u,v))
                 return False
         return False
 
@@ -511,14 +528,6 @@ class LRPP():
         # do any needed online fixes to the path to adapt to not knowing where
         # observations will be made
         # set goal count in here as well
-
-        # if robot is observing an edge, append edge to end of path
-        if self.node != None and self.node.opair != None:
-            edge_to_observe = self.node.opair.E
-
-            (u,v) = edge_to_observe
-            if self.path[-1] == u: self.path.append(v)
-            elif self.path[-1] == v: self.path.append(u)
 
         # if robot is in the same submap as first edge, go straight to second vertex in
         # path
@@ -748,12 +757,9 @@ if __name__ == '__main__':
     # setup logging
     logging.basicConfig(level=logging.DEBUG)
 
-    # set number of tasks
-    ntasks = 10 
-
     # run LRPP
     try:
-        LRPP(graph, poly_dict, T=ntasks)
+        LRPP(graph, poly_dict, T=NTASKS)
     except rospy.ROSInterruptException:
         rospy.loginfo("Finished simulation.")
 
