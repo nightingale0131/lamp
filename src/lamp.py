@@ -41,7 +41,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
 TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
 COSTFN = 3 # which costfunction to use
-NTASKS = 30 # number of tasks to execute in trial
+NTASKS = 50 # number of tasks to execute in trial
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -532,8 +532,8 @@ class LRPP():
         # if robot is in the same submap as first edge, go straight to second vertex in
         # path
         if len(self.path) > 1:
-            curr_poly = self.curr_graph.get_polygon(self.path[0], self.path[1])
-            if self.curr_graph.in_polygon(self.pos, curr_poly):
+            path_submap = self.curr_graph.get_polygon(self.path[0], self.path[1])
+            if path_submap == self.curr_submap:
                 self.path[0] = self.vprev
                 self.goal_cnt = 1
             else:
