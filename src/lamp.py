@@ -103,6 +103,7 @@ class LRPP():
 
         # create blank tgraph to fill in (make sure nothing is carried over!)
         self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
+        self.curr_submap = self.curr_graph.get_polygon('s', 1)
         self.path_blocked = False
         self.entered_openloop = False
         self.localization_err = False
