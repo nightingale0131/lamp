@@ -40,6 +40,8 @@ if __name__ == '__main__':
     policy3_data = []
     openloop_data = []
     naive_data = []
+    nol = [0,0,0]
+    costfn = 0
 
     # fill *_data list
     with open(filepath, 'rb') as datafile:
@@ -51,6 +53,12 @@ if __name__ == '__main__':
                 parts = line.split()
                 policy_data.append(float(parts[1]))
             '''
+            if line.startswith("Entered openloop:"):
+                # times entered openloop
+                if "True" in line:
+                    nol[costfn] += 1
+                costfn += 1
+                if costfn >= 3: costfn = 0
             if line.startswith("Policy 1"):
                 parts = line.split()
                 policy1_data.append(float(parts[2]))
@@ -71,8 +79,11 @@ if __name__ == '__main__':
 
     print("Average over {} tasks:".format(len(naive_data)))
     # print("{:19}: {:.2f}".format("Policy average", util.average(policy_data)))
-    print("{:19}: {:.2f}".format("Policy 1 average", util.average(policy1_data)))
-    print("{:19}: {:.2f}".format("Policy 2 average", util.average(policy2_data)))
-    print("{:19}: {:.2f}".format("Policy 3 average", util.average(policy3_data)))
     print("{:19}: {:.2f}".format("Openloop average", util.average(openloop_data)))
     print("{:19}: {:.2f}".format("Naive average", util.average(naive_data)))
+    print("{:19}: {:.2f}".format("Policy 1 average", util.average(policy1_data)))
+    print("{:19}: {}".format("  # lambda calls", nol[0]))
+    print("{:19}: {:.2f}".format("Policy 2 average", util.average(policy2_data)))
+    print("{:19}: {}".format("  # lambda calls", nol[1]))
+    print("{:19}: {:.2f}".format("Policy 3 average", util.average(policy3_data)))
+    print("{:19}: {}".format("  # lambda calls", nol[2]))
