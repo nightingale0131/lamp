@@ -79,8 +79,8 @@ if __name__ == '__main__':
 
     print("Average over {} tasks:".format(len(naive_data)))
     # print("{:19}: {:.2f}".format("Policy average", util.average(policy_data)))
-    print("{:19}: {:.2f}".format("Openloop average", util.average(openloop_data)))
     print("{:19}: {:.2f}".format("Naive average", util.average(naive_data)))
+    print("{:19}: {:.2f}".format("Openloop average", util.average(openloop_data)))
     print("{:19}: {:.2f}".format("Policy 1 average", util.average(policy1_data)))
     print("{:19}: {}".format("  # lambda calls", nol[0]))
     print("{:19}: {:.2f}".format("Policy 2 average", util.average(policy2_data)))
