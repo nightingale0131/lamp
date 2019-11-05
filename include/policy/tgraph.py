@@ -42,6 +42,7 @@ class TGraph(object):
         """
         self.graph = nxgraph.copy()
         self.goal = 'g'
+        self.submaps = set()
 
         logger.info("Validating input...")
         # check to make sure each edge has an associated polygon
@@ -105,6 +106,35 @@ class TGraph(object):
                 vset.update([u,v])
 
         return vset
+
+    def add_connected_vertex(self, label, location, last_vertex):
+        # automatically adds edges to portals in the same polygon
+        # label - string
+        # location - (x,y), in reference to map
+        # last_vertex - last vertex that robot passed
+
+        # add vertex
+        self.graph.add_node(label, defn=Point(location))
+
+        # find polygon (search all edges that are adjacent to originating portal)
+        searched_polygons = [] # there's only two associated with any portal
+        for neighbor in self.graph.neighbors_iter(last_vertex):
+            poly = self.get_polygon(last_vertex, neighbor)
+            if poly not in searched_polygons:
+                searched_polygons.append(poly)
+                if self.in_polygon(location, poly):
+                    break
+
+        # add edges to all portals that are unblocked/unknown to originating portal
+        for portal in self.get_vertices_in_polygon(poly):
+            print("Is ({},{}) blocked?".format(last_vertex, portal))
+            if last_vertex == portal or self.edge_state(last_vertex, portal) != self.BLOCKED:
+                weight = util.euclidean_distance(self.pos(label), self.pos(portal))
+                self.graph.add_edge(label, portal, weight=weight)
+
+    def remove_vertex(self, v):
+        # v - vertex label
+        self.graph.remove_node(v)
 
     def vertices(self, data=False):
         return self.graph.nodes(data=data)

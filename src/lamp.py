@@ -41,7 +41,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
 TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
 COSTFN = 3 # which costfunction to use
-NTASKS = 50 # number of tasks to execute in trial
+NTASKS = 10 # number of tasks to execute in trial
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -637,8 +637,17 @@ class LRPP():
 
         self.entered_openloop = True
         self.node = None
+
+        # New replan
+        # add temporary node with robot location
+        self.curr_graph.add_connected_vertex('r', self.pos, self.vprev)
+        dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, 'r', 'g')
+        self.curr_graph.remove_vertex('r')
+
+        ''' old replan
         start = self.vprev
         dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, start, 'g')
+        '''
 
         if dist['g'] == float('inf'):
             print(self.curr_graph.edges(data='state'))
@@ -646,7 +655,7 @@ class LRPP():
             self.finish_task(err=True)
             return # path_blocked = True from now until shutdown
 
-        path = paths['g']
+        path = paths['g'][1:]
 
         self.set_new_path(path)
         self.set_and_send_next_goal()
