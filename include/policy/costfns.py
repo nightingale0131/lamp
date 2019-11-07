@@ -22,6 +22,8 @@ def costfn1(known_cost_to_v, v, goal, belief, supermaps, p_Xy):
         except KeyError:
             cost_in_i = float('inf')
 
+        logger.debug("  cG_{}({}) = {:.3f}".format(i, v, cost_in_i))
+
         if cost_in_i < float('inf'):
             '''
             In RPP, the robot will stop at the observation once it believes there is

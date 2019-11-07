@@ -40,7 +40,6 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
             #   variations, must be greater than TOL
 TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
-COSTFN = 3 # which costfunction to use
 NTASKS = 10 # number of tasks to execute in trial
 
 class LRPP():
@@ -71,7 +70,7 @@ class LRPP():
         self.base_map = Map(base_tgraph)
         self.features = self.base_map.features()
         # store the different M for each costfn
-        self.costfnM = [[self.base_map],[self.base_map],[self.base_map]] 
+        self.costfnM = [[Map(copy(base_tgraph))],[Map(copy(base_tgraph))],[Map(copy(base_tgraph))]] 
         self.M = self.costfnM[0] # initialize map storage
         self.T = T  # number of tasks to execute
         self.tcount = 1 # current task being executed
@@ -234,9 +233,6 @@ class LRPP():
             self.start_task(self.mode, redo=True)
             return
 
-        # if self.tcount == 1 and err == False and self.mode == "policy":
-            # f.write("\nUsing costfn {}".format(COSTFN)) # only once at beginning of file
-
         if self.mode == "policy":
             # run map filter
             info = self.save_map_and_filter()
@@ -283,7 +279,7 @@ class LRPP():
                 self.costfn = 1
             else:
                 next_mode = "policy"
-                self.costfn += 1
+                self.costfn += 2
 
         elif self.mode == "openloop":
             next_mode = "naive"
@@ -296,6 +292,9 @@ class LRPP():
                     .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
             # f.write("\n==============================")
 
+
+        # controls what the last mode is
+        if self.mode == "naive":
             # clear all non-static obstacles
             for model in self.task_obstacles:
                 gz.delete_obstacle(model)
@@ -644,11 +643,6 @@ class LRPP():
         dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, 'r', 'g')
         self.curr_graph.remove_vertex('r')
 
-        ''' old replan
-        start = self.vprev
-        dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, start, 'g')
-        '''
-
         if dist['g'] == float('inf'):
             print(self.curr_graph.edges(data='state'))
             rospy.loginfo("Cannot go to goal! Ending task.")
@@ -772,6 +766,3 @@ if __name__ == '__main__':
         LRPP(graph, poly_dict, T=NTASKS)
     except rospy.ROSInterruptException:
         rospy.loginfo("Finished simulation.")
-
-    # add some test data collection like:
-    #   - graph data, states, weights
