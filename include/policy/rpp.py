@@ -61,126 +61,141 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
         (Y,v,new_node)=Q.popleft()
         logger.info('Start of a new Q loop for {}'.format(v))
 
-        # check if it is possible for robot to go to goal based on what it knows
-        can_terminate=True
-        for i in Y:
-            if M[i].get_cost(goal, v) != float('inf'):
-                can_terminate=False
-                break
+        (nextO, path) = next_decision(Y, v, M, p, features, goal, robot_range, costfn)
 
-        if can_terminate == True:
-            logger.info('Cannot reach goal')
-            new_node.add_leg("no goal")
-        else:
-            # calculate P(Xy=i) of each i in Y
-            p_sum=0
-            p_Xy={}
-            for i in Y:
-                p_sum+=p[i]
-            logger.debug('p_sum = {:.3f}'.format(p_sum))
+        (obsv, u, unblocked_u, blocked_u) = nextO
+        O = deepcopy(obsv) # python specific, makes sure it's not pointing to
+                           # same object being manipulated in next_decision()
 
-            for i in Y:
-                p_Xy[i]=p[i]/p_sum
-                logger.info('p_Xy[{}] = {:.3f}'.format(i,p_Xy[i]))
+        new_node.add_leg(u, O, path)
 
-            # update known graph & calc transition costs from v
-            knownG = get_knownG(features, M, Y)
-            logger.info("Calculating c_knownG")
-            cost, paths = nx.single_source_dijkstra( knownG, v, weight =
-            'weight')
-            # c_knownG = Cost(dijkstra(knownG, knownG.known_weight, v))
-            c_knownG = Cost(cost, paths)
+        # Add new children nodes and add those to the queue
+        # For LAMP, there's only two possible outcomes: blocked/unblocked
+        if O != None:
+            for outcome in O.outcomes:
+                policy.append(Node(outcome.new_belief()))
+                new_node.add_outcome(policy[-1])
 
-            # compute R ----------------------------------------
-            R, D = useful_features( features, M, p_Xy, c_knownG, knownG, Y, goal, robot_range,
-                    costfn )
-            # R - [(O1,v1,uu1,ub1), (O2,v2,uu2,ub2), ...]
-            # D - {v1: cost_v1, v2: cost_v2, ...}
-            logger.debug('R = {}'.format(str(R)))
-
-            # find minO -------------------------------------------------------
-            logger.info("Finding minO...")
-            if len(R) == 0:
-                # If R is empty, then it's cheaper to go to the goal than to go
-                #   anywhere else
-                logger.info('Add goal to policy')
-                new_node.add_leg(goal,None,c_knownG.paths[goal])
-            else:
-                # else find the best observation (min of eqn 10), add tiebreaker
-                minScore = float('inf') # result of eqn 10
-                for item in R:
-                    # calculate entropy of each observation
-                    (obsv, u, uu, ub) = item
-                    logger.debug('Calculating entropy of ({},{})'.format(obsv.E,u))
-
-                    H = 0 # negated conditional entropy
-                    for outcome in obsv.outcomes:
-                        h = 0
-                        for i in outcome.Yo:
-                            # add conditional prob of supermaps that have mapped obsv
-                            # p_cond -> P(Xy=i|Eo=E)
-                            p_cond=p_Xy[i]/outcome.p
-                            logger.debug('  p_cond of {} = {:.3f}'.format(i,p_cond))
-                            if p_cond == 0:
-                                h += 0 # log(0) returns NaN
-                            else:
-                                h += p_cond*math.log(p_cond)
-
-                            for i in outcome.unknown:
-                               # add conditional prob of supermaps that have not mapped
-                               #    obsv 
-                               p_cond = p_Xy[i]
-                               logger.debug(' p_cond of {} = {:.3f}'.format(i,p_cond))
-                               if p_cond == 0:
-                                    h += 0 # log(0) returns NaN
-                               else:
-                                    h += p_cond*math.log(p_cond)
-
-                        H += outcome.p*h
-
-                    H = -H
-                    score = D[u]*H
-                    logger.info('({},{})  Entropy: {:.4f}  Score: {:.4f}'
-                            .format(obsv.E, u, H,score))
-                    if score < minScore:
-                        minScore = score
-                        minO = (obsv, u, D[u], uu, ub)
-
-                    # in the event of multiple observations score = 0, select (O, v) w/ 
-                    #   least expected cost to goal if we go to v
-                    if score == 0 and minScore == 0:
-                        if D[u] < minO[2]:
-                            minO = (obsv, u, D[u], uu, ub)
-
-                (min_o, min_u, min_cost, min_uu, min_ub) = minO
-                logger.info("MinO: ({}, {}, {}, {})".format(min_o.E, min_u, min_uu, min_ub))
-
-                minObservation = deepcopy(min_o)
-
-                # set node observation, state, and path
-                path_to_obsv = c_knownG.paths[min_u]
-                (u1, u2) = min_o.E
-                if u1 == min_u: path_to_obsv.append(u2)
-                else: path_to_obsv.append(u1)
-                new_node.add_leg(min_u,minObservation,path_to_obsv)
-                '''
-                new_node.add_leg(min_u,minObservation,c_knownG.paths[min_u])
-                '''
-
-                # Add new children nodes and add those to the queue
-                # For LAMP, there's only two possible outcomes: blocked/unblocked
-                for outcome in min_o.outcomes:
-                    policy.append(Node(outcome.new_belief()))
-                    new_node.add_outcome(policy[-1])
-
-                    if outcome.state == base_map.G.BLOCKED:
-                        Q.append((outcome.new_belief(),min_ub,policy[-1]))
-                    elif outcome.state == base_map.G.UNBLOCKED:
-                        Q.append((outcome.new_belief(),min_uu,policy[-1]))
-                    else:
-                        raise Exception("State of outcome is not blocked or unblocked!")
+                if outcome.state == base_map.G.BLOCKED:
+                    Q.append((outcome.new_belief(), blocked_u, policy[-1]))
+                elif outcome.state == base_map.G.UNBLOCKED:
+                    Q.append((outcome.new_belief(), unblocked_u, policy[-1]))
+                else:
+                    raise Exception("State of outcome is not blocked or unblocked!")
 
     return policy
+
+def next_decision(Y, v, M, p, features, goal, robot_range, costfn=1):
+    '''
+    Y - [] of environments, belief
+    v - current location of robot
+    '''
+    # check if it is possible for robot to go to goal based on what it knows
+    can_terminate=True
+    for i in Y:
+        if M[i].get_cost(goal, v) != float('inf'):
+            can_terminate=False
+            break
+
+    if can_terminate == True:
+        logger.info('Cannot reach goal')
+        nextO = (None, "no goal", None, None) 
+        next_path = None
+    else:
+        # calculate P(Xy=i) of each i in Y
+        p_sum=0
+        p_Xy={}
+        for i in Y:
+            p_sum+=p[i]
+        logger.debug('p_sum = {:.3f}'.format(p_sum))
+
+        for i in Y:
+            p_Xy[i]=p[i]/p_sum
+            logger.info('p_Xy[{}] = {:.3f}'.format(i,p_Xy[i]))
+
+        # update known graph & calc transition costs from v
+        knownG = get_knownG(features, M, Y)
+        logger.info("Calculating c_knownG")
+        cost, paths = nx.single_source_dijkstra( knownG, v, weight =
+        'weight')
+        # c_knownG = Cost(dijkstra(knownG, knownG.known_weight, v))
+        c_knownG = Cost(cost, paths)
+
+        # compute R ----------------------------------------
+        R, D = useful_features( features, M, p_Xy, c_knownG, knownG, Y, goal, robot_range,
+                costfn )
+        # R - [(O1,v1,uu1,ub1), (O2,v2,uu2,ub2), ...]
+        # D - {v1: cost_v1, v2: cost_v2, ...}
+        logger.debug('R = {}'.format(str(R)))
+
+        # find minO -------------------------------------------------------
+        logger.info("Finding minO...")
+        if len(R) == 0:
+            # If R is empty, then it's cheaper to go to the goal than to go
+            #   anywhere else
+            logger.info('Add goal to policy')
+            nextO = (None, goal, None, None)
+            next_path = c_knownG.paths[goal]
+        else:
+            # else find the best observation (min of eqn 10), add tiebreaker
+            minScore = float('inf') # result of eqn 10
+            for item in R:
+                # calculate entropy of each observation
+                (obsv, u, uu, ub) = item
+                logger.debug('Calculating entropy of ({},{})'.format(obsv.E,u))
+
+                H = 0 # negated conditional entropy
+                for outcome in obsv.outcomes:
+                    h = 0
+                    for i in outcome.Yo:
+                        # add conditional prob of supermaps that have mapped obsv
+                        # p_cond -> P(Xy=i|Eo=E)
+                        p_cond=p_Xy[i]/outcome.p
+                        logger.debug('  p_cond of {} = {:.3f}'.format(i,p_cond))
+                        if p_cond == 0:
+                            h += 0 # log(0) returns NaN
+                        else:
+                            h += p_cond*math.log(p_cond)
+
+                        for i in outcome.unknown:
+                           # add conditional prob of supermaps that have not mapped
+                           #    obsv 
+                           p_cond = p_Xy[i]
+                           logger.debug(' p_cond of {} = {:.3f}'.format(i,p_cond))
+                           if p_cond == 0:
+                                h += 0 # log(0) returns NaN
+                           else:
+                                h += p_cond*math.log(p_cond)
+
+                    H += outcome.p*h
+
+                H = -H
+                score = D[u]*H
+                logger.info('({},{})  Entropy: {:.4f}  Score: {:.4f}'
+                        .format(obsv.E, u, H,score))
+                if score < minScore:
+                    minScore = score
+                    minO = (obsv, u, D[u], uu, ub)
+
+                # in the event of multiple observations score = 0, select (O, v) w/ 
+                #   least expected cost to goal if we go to v
+                if score == 0 and minScore == 0:
+                    if D[u] < minO[2]:
+                        minO = (obsv, u, D[u], uu, ub)
+
+            (min_o, min_u, min_cost, min_uu, min_ub) = minO
+            logger.info("MinO: ({}, {}, {}, {})".format(min_o.E, min_u, min_uu, min_ub))
+
+            # modify path to include observation since we have to traverse the path to
+            # observe it
+            next_path = c_knownG.paths[min_u]
+            (u1, u2) = min_o.E
+            if u1 == min_u: next_path.append(u2)
+            else: next_path.append(u1)
+
+            nextO = (min_o, min_u, min_uu, min_ub)
+
+    return nextO, next_path
 
 def get_knownG(features, supermaps, belief):
     logger.info("Updating knownG...")
