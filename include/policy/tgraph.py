@@ -127,7 +127,6 @@ class TGraph(object):
 
         # add edges to all portals that are unblocked/unknown to originating portal
         for portal in self.get_vertices_in_polygon(poly):
-            print("Is ({},{}) blocked?".format(last_vertex, portal))
             if last_vertex == portal or self.edge_state(last_vertex, portal) != self.BLOCKED:
                 weight = util.euclidean_distance(self.pos(label), self.pos(portal))
                 self.graph.add_edge(label, portal, weight=weight)
