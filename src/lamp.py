@@ -75,6 +75,7 @@ class LRPP():
         self.T = T  # number of tasks to execute
         self.tcount = 1 # current task being executed
         self.range = self.get_range()
+        self.observation = None
 
         self.suspend = False # flag to temporarily suspend plan & edge callbacks
         self.path_blocked = False # flag for path being blocked, calls reactive algo
@@ -128,6 +129,8 @@ class LRPP():
                 self.curr_graph.set_edge_state(u,v,self.curr_graph.UNKNOWN)
             self.node = self.policy[0].next_node()
             self.vprev = self.node.path[0] 
+            if self.node.opair != None: self.observation = self.node.opair.E
+            else: self.observation = None
             self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
 
         elif mode == "openloop":
@@ -396,21 +399,26 @@ class LRPP():
             elif (self.goal_cnt == len(self.pose_seq) - 1):
                 rospy.loginfo("Reached end of path")
 
-        if self.move_to_next_node():
+        if self.completed_observation():
             # if node under observation is no longer unknown, move to next node
             # selecting next node in tree and setting path
             rospy.loginfo("SUSPENDING CALLBACKS...")
             self.suspend = True
-            (u,v) = self.node.opair.E 
+            # (u,v) = self.node.opair.E 
+            (u,v) = self.observation
             state = self.curr_graph.edge_state(u,v)
             self.node = self.node.next_node(state)
+            if self.node.opair != None: self.observation = self.node.opair.E
+            else: self.observation = None
             self.set_new_path(self.node.path) # update pose seq
             self.set_and_send_next_goal()
 
-    def move_to_next_node(self):
+    def completed_observation(self):
         # check if observation has been satisfied
-        if self.node != None and self.node.opair != None:
-            (u,v) = self.node.opair.E 
+        # if self.node != None and self.node.opair != None:
+        if self.observation != None:
+            # (u,v) = self.node.opair.E 
+            (u,v) = self.observation
 
             rospy.loginfo("Observing ({},{})...".format(u,v))
             state = self.curr_graph.edge_state(u,v)
@@ -681,8 +689,10 @@ class LRPP():
                         break
 
     def edge_under_observation(self, u, v):
-        if self.node != None and self.node.opair != None:
-            (ou, ov) = self.node.opair.E 
+        # if self.node != None and self.node.opair != None:
+        if self.observation != None:
+            # (ou, ov) = self.node.opair.E 
+            (ou, ov) = self.observation
             if (ou == u and ov == v) or (ou == v and ov == u):
                 return True
 
