@@ -107,7 +107,7 @@ class TGraph(object):
 
         return vset
 
-    def add_connected_vertex(self, label, location, last_vertex):
+    def add_connected_vertex(self, label, location, last_vertex, add_blocked=False):
         # automatically adds edges to portals in the same polygon
         # label - string
         # location - (x,y), in reference to map
@@ -127,9 +127,17 @@ class TGraph(object):
 
         # add edges to all portals that are unblocked/unknown to originating portal
         for portal in self.get_vertices_in_polygon(poly):
-            if last_vertex == portal or self.edge_state(last_vertex, portal) != self.BLOCKED:
+            if last_vertex != portal:
+                state = self.edge_state(last_vertex, portal)
+            else: 
+                state = None
+
+            if state == None or state != self.BLOCKED:
                 weight = util.euclidean_distance(self.pos(label), self.pos(portal))
-                self.graph.add_edge(label, portal, weight=weight)
+                self.graph.add_edge(label, portal, weight=weight, state=state)
+            elif add_blocked == True and state == self.BLOCKED:
+                self.graph.add_edge(label, portal, weight=float('inf'),
+                        state=self.BLOCKED)
 
     def remove_vertex(self, v):
         # v - vertex label
