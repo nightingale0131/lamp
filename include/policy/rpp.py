@@ -130,7 +130,7 @@ def online_RPP(belief, vprev, robot_loc, M, p, features, goal, robot_range=None,
     if path[0] == 'r': path.pop(0)
 
     # return obsv and path
-    return O.E, path
+    return O, path
 
 def next_decision(Y, v, M, p, features, goal, c_knownG, robot_range, costfn=1):
     '''

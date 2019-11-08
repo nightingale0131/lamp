@@ -70,8 +70,12 @@ class LRPP():
         self.base_map = Map(base_tgraph)
         self.features = self.base_map.features()
         # store the different M for each costfn
-        self.costfnM = [[Map(copy(base_tgraph))],[Map(copy(base_tgraph))],[Map(copy(base_tgraph))]] 
-        self.M = self.costfnM[0] # initialize map storage
+        self.costfnM = [
+                [Map(copy(base_tgraph))],
+                [Map(copy(base_tgraph))],
+                [Map(copy(base_tgraph))],
+                [Map(copy(base_tgraph))]] 
+        self.M = self.costfnM[1] # initialize map storage
         self.T = T  # number of tasks to execute
         self.tcount = 1 # current task being executed
         self.range = self.get_range()
@@ -111,7 +115,7 @@ class LRPP():
         if mode == "policy":
             rospy.loginfo("Calculating policy for task {} using costfn {}..."
                     .format(self.tcount, self.costfn))
-            self.M = self.costfnM[self.costfn-1]
+            self.M = self.costfnM[self.costfn]
             self.p = mf.update_p_est(self.M, self.tcount)
             self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g',
                     robot_range=self.range, costfn=self.costfn)
@@ -129,14 +133,25 @@ class LRPP():
                 self.curr_graph.set_edge_state(u,v,self.curr_graph.UNKNOWN)
             self.node = self.policy[0].next_node()
             self.vprev = self.node.path[0] 
-            if self.node.opair != None: self.observation = self.node.opair.E
-            else: self.observation = None
+            self.observation = self.node.opair
             self.set_new_path(self.node.path) # sets pose_seq and goal_cnt
+
+        elif mode == "online":
+            # calculate next observation after making first observation
+            self.vprev = 's'
+            self.M = self.costfnM[0]
+            self.p = mf.update_p_est(self.M, self.tcount)
+            self.belief = range(len(self.M))
+            # need to modify online_RPP to accept 's' as vertex
+            O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
+                    features, 'g')
+            self.observation = O
+            self.set_new_path(path)
 
         elif mode == "openloop":
             # set robot to go straight into openloop
             self.entered_openloop = True
-            self.node = None
+            self.observation = None
             self.vprev = 's'
             dist, paths = nx.single_source_dijkstra(self.curr_graph.graph, 's', 'g')
             self.set_new_path(paths['g'])
@@ -144,7 +159,7 @@ class LRPP():
         elif mode == "naive":
             # clear waypoint arrows
             self.posearray_publisher.publish(self.conv_to_PoseArray([]))
-            self.node = None
+            self.observation = None
             self.vprev = 's'
             self.vnext = 'g'
             self.path = ['g']
@@ -404,20 +419,19 @@ class LRPP():
             # selecting next node in tree and setting path
             rospy.loginfo("SUSPENDING CALLBACKS...")
             self.suspend = True
-            (u,v) = self.observation
+            (u,v) = self.observation.E
             state = self.curr_graph.edge_state(u,v)
 
             # move to next node
             self.node = self.node.next_node(state)
-            if self.node.opair != None: self.observation = self.node.opair.E
-            else: self.observation = None
+            self.observation = self.node.opair
             self.set_new_path(self.node.path) # update pose seq
             self.set_and_send_next_goal()
 
     def completed_observation(self):
         # check if observation has been satisfied
         if self.observation != None:
-            (u,v) = self.observation
+            (u,v) = self.observation.E
 
             rospy.loginfo("Observing ({},{})...".format(u,v))
             state = self.curr_graph.edge_state(u,v)
@@ -689,7 +703,7 @@ class LRPP():
 
     def edge_under_observation(self, u, v):
         if self.observation != None:
-            (ou, ov) = self.observation
+            (ou, ov) = self.observation.E
             if (ou == u and ov == v) or (ou == v and ov == u):
                 return True
 

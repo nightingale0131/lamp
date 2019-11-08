@@ -74,7 +74,7 @@ def costfn2(known_cost_to_v, v, u, goal, outcomes, supermaps, p_Xy):
     return (known_cost_to_v + blocked_p*blocked_exp_cost +
             unblocked_p*(unblocked_exp_cost + edge_cost))
 
-def costfn3(known_cost_to_v, v, u, goal, knownG, outcomes, supermaps, p_Xy, robot_range):
+def costfn3(known_cost_to_v, v, u, goal, outcomes, supermaps, p_Xy, robot_range):
     '''
     Takes into account that submaps are convex, uses that to give better cost estimate.
     Supermaps[i].G must be TGraph class object!
