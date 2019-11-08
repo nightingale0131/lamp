@@ -404,9 +404,10 @@ class LRPP():
             # selecting next node in tree and setting path
             rospy.loginfo("SUSPENDING CALLBACKS...")
             self.suspend = True
-            # (u,v) = self.node.opair.E 
             (u,v) = self.observation
             state = self.curr_graph.edge_state(u,v)
+
+            # move to next node
             self.node = self.node.next_node(state)
             if self.node.opair != None: self.observation = self.node.opair.E
             else: self.observation = None
@@ -415,9 +416,7 @@ class LRPP():
 
     def completed_observation(self):
         # check if observation has been satisfied
-        # if self.node != None and self.node.opair != None:
         if self.observation != None:
-            # (u,v) = self.node.opair.E 
             (u,v) = self.observation
 
             rospy.loginfo("Observing ({},{})...".format(u,v))
@@ -689,9 +688,7 @@ class LRPP():
                         break
 
     def edge_under_observation(self, u, v):
-        # if self.node != None and self.node.opair != None:
         if self.observation != None:
-            # (ou, ov) = self.node.opair.E 
             (ou, ov) = self.observation
             if (ou == u and ov == v) or (ou == v and ov == u):
                 return True
