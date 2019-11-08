@@ -61,7 +61,14 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
         (Y,v,new_node)=Q.popleft()
         logger.info('Start of a new Q loop for {}'.format(v))
 
-        (nextO, path) = next_decision(Y, v, M, p, features, goal, robot_range, costfn)
+        # update known graph & calc transition costs from v
+        knownG = get_knownG(features, M, Y)
+        logger.info("Calculating c_knownG")
+        cost, paths = nx.single_source_dijkstra( knownG, v, weight =
+        'weight')
+        c_knownG = Cost(cost, paths)
+
+        (nextO, path) = next_decision(Y, v, M, p, features, goal, c_knownG, robot_range, costfn)
 
         (obsv, u, unblocked_u, blocked_u) = nextO
         O = deepcopy(obsv) # python specific, makes sure it's not pointing to
@@ -85,7 +92,47 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
 
     return policy
 
-def next_decision(Y, v, M, p, features, goal, robot_range, costfn=1):
+def online_RPP(belief, vprev, robot_loc, M, p, features, goal, robot_range=None, costfn=1):
+    '''
+    robot_loc - (x,y) current robot location
+    returns next observation (vi, vj) and path [v1, v2, ...]
+    '''
+    logger.info("Computing next observation...")
+
+    logger.info("Temporarily adding current location to all supermaps...")
+    for i in belief:
+        M[i].G.add_connected_vertex('r', robot_loc, vprev)
+        M[i].update_all_feature_states()
+        M[i].update_cost(goal)
+
+    # create custom features list and calc c_knownG with r
+    logger.info("Computing knownG...")
+    features = M[0].features()
+    knownG = get_knownG(features, M, belief)
+    cost, paths = nx.single_source_dijkstra( knownG, v, weight='weight')
+    c_knownG = Cost(cost, paths)
+
+    # run next_decision with updated supermaps and custom feature list (including r)
+    (nextO, path) = next_decision(belief, 'r', M, p, features, goal, c_knownG, robot_range, costfn)
+    (obsv, u, unblocked_u, blocked_u) = nextO
+    O = deepcopy(obsv) # python specific, explained above
+
+    # remove robot_loc from supermaps
+    logger.info("Removing temp vertex...")
+    for i in belief:
+        M[i].G.remove_vertex('r')
+
+    # if obsv (a,b) contains r, replace with vprev
+    (a,b) = O.E
+    if a == 'r': O.E = (vprev, b)
+    elif b == 'r': O.E = (a, vprev)
+    # remove r from beginning of path
+    if path[0] == 'r': path.pop(0)
+
+    # return obsv and path
+    return O.E, path
+
+def next_decision(Y, v, M, p, features, goal, c_knownG, robot_range, costfn=1):
     '''
     Y - [] of environments, belief
     v - current location of robot
@@ -113,6 +160,7 @@ def next_decision(Y, v, M, p, features, goal, robot_range, costfn=1):
             p_Xy[i]=p[i]/p_sum
             logger.info('p_Xy[{}] = {:.3f}'.format(i,p_Xy[i]))
 
+        '''
         # update known graph & calc transition costs from v
         knownG = get_knownG(features, M, Y)
         logger.info("Calculating c_knownG")
@@ -120,10 +168,10 @@ def next_decision(Y, v, M, p, features, goal, robot_range, costfn=1):
         'weight')
         # c_knownG = Cost(dijkstra(knownG, knownG.known_weight, v))
         c_knownG = Cost(cost, paths)
+        '''
 
         # compute R ----------------------------------------
-        R, D = useful_features( features, M, p_Xy, c_knownG, knownG, Y, goal, robot_range,
-                costfn )
+        R, D = useful_features( features, M, p_Xy, c_knownG, Y, goal, robot_range, costfn )
         # R - [(O1,v1,uu1,ub1), (O2,v2,uu2,ub2), ...]
         # D - {v1: cost_v1, v2: cost_v2, ...}
         logger.debug('R = {}'.format(str(R)))
@@ -237,7 +285,7 @@ def get_knownG(features, supermaps, belief):
     logger.debug(nx.info(knownG))
     return knownG
 
-def useful_features( features, supermaps, p_Xy, c_knownG, knownG, belief, goal, robot_range,
+def useful_features( features, supermaps, p_Xy, c_knownG, belief, goal, robot_range,
         costfn ):
     """
     Compute Rv
@@ -349,7 +397,7 @@ def useful_features( features, supermaps, p_Xy, c_knownG, knownG, belief, goal, 
                     ub = start_u
                 elif costfn == 3:
                     (uu, ub, travel_cost) = cf.costfn3(reachable[v], start_u, end_u, goal, 
-                            knownG, o.outcomes, supermaps, p_Xy, robot_range) 
+                            o.outcomes, supermaps, p_Xy, robot_range) 
 
                 logger.info("Comparing known cost to goal: {:.3f} to cost of {}: {:.3f}"
                         .format(c_knownG.cost[goal], v, travel_cost))
