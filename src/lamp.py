@@ -111,7 +111,8 @@ class LRPP():
         self.path_blocked = False
         self.entered_openloop = False
         self.localization_err = False
-        self.belief = []
+        self.belief = [] # for online 
+        self.observations = []  # for online
 
         if mode == "policy":
             rospy.loginfo("Calculating policy for task {} using costfn {}..."
@@ -139,6 +140,13 @@ class LRPP():
             O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
                     'g', costfn=self.costfn)
             self.observation = O
+
+            # for data collection purposes
+            if self.observation != None: 
+                self.observations.append((O.E, copy(path), copy(self.belief)))
+            else: 
+                self.observations.append((None, copy(path), copy(self.belief)))
+
             self.set_new_path(path)
 
         elif mode == "policy":
@@ -257,12 +265,19 @@ class LRPP():
 
         if self.mode == "online":
             next_mode = "policy"
+            info = self.save_map_and_filter()
+
             f.write("\n==============================")
             f.write("\nTask {}".format(self.tcount))
             f.write("\nEntered openloop: {}".format(self.entered_openloop))
             f.write("\nUsing costfn {}".format(self.costfn))
 
-            info = self.save_map_and_filter()
+            # write seq of paths that robot attempted
+            for e, path, belief in self.observations:
+                f.write("\n  {:<10}{:<20}{}".format(e, belief, path))
+
+            f.write("\n\nMap agreed with: {}, Map merge: {}"
+                    .format(info['agree'], info['merged']))
 
             # print states
             f.write("\nMap states")
@@ -336,7 +351,7 @@ class LRPP():
                     .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
 
         elif self.mode == "naive":
-            next_mode = "policy"
+            next_mode = "online"
             f.write("\nNaive       {:9.3f}               {}"
                     .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
             # f.write("\n==============================")
@@ -704,7 +719,11 @@ class LRPP():
             O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
                     'g', costfn=self.costfn)
             self.observation = O
-            rospy.loginfo("Raw path: {}".format(path))
+            # for data collection purposes
+            if self.observation != None: 
+                self.observations.append((O.E, copy(path), copy(self.belief)))
+            else: 
+                self.observations.append((None, copy(path), copy(self.belief)))
 
         else:
             rospy.loginfo("In openloop, replanning on graph...")
