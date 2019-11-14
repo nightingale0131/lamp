@@ -117,6 +117,7 @@ class TGraph(object):
         self.graph.add_node(label, defn=Point(location))
 
         # find polygon (search all edges that are adjacent to originating portal)
+        curr_poly = None
         searched_polygons = [] # there's only two associated with any portal
         for neighbor in self.graph.neighbors_iter(last_vertex):
             logger.info("Checking polygon of ({},{})".format(last_vertex, neighbor))
@@ -124,6 +125,7 @@ class TGraph(object):
             if poly not in searched_polygons:
                 searched_polygons.append(poly)
                 if self.in_polygon(location, poly):
+                    curr_poly = poly
                     break
 
         # add edges to all portals that are unblocked/unknown to originating portal
@@ -135,10 +137,11 @@ class TGraph(object):
 
             if state != self.BLOCKED:
                 weight = util.euclidean_distance(self.pos(label), self.pos(portal))
-                self.graph.add_edge(label, portal, weight=weight, state=state)
+                self.graph.add_edge(label, portal, weight=weight, state=state, 
+                        polygon=curr_poly)
             elif add_blocked == True and state == self.BLOCKED:
                 self.graph.add_edge(label, portal, weight=float('inf'),
-                        state=self.BLOCKED)
+                        state=self.BLOCKED, polygon=curr_poly)
 
         logger.info("Added new vertex {}".format(label))
         logger.info(self)
