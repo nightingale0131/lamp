@@ -142,9 +142,11 @@ class Map(object):
         # using G.observe, determine list of features, what state they are in, and what
         #   vertex they can be sensed (in G at a range of obs_range)
 
+        logger.debug("Updating map features...")
         self._features.clear()
         for v in self.G.graph.nodes():
             observation = self.G.observe(v) # only returns list of visible edges
+            logger.debug(" Observe from {}: {}".format(v, observation))
 
             for e in observation:
                 (a,b) = e
