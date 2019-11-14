@@ -40,7 +40,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
             #   variations, must be greater than TOL
 TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
-NTASKS = 5 # number of tasks to execute in trial
+NTASKS = 50 # number of tasks to execute in trial
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -81,6 +81,7 @@ class LRPP():
         self.range = self.get_range()
         self.observation = None
 
+        self.init_buffer = None # for edge_callback
         self.suspend = False # flag to temporarily suspend plan & edge callbacks
         self.path_blocked = False # flag for path being blocked, calls reactive algo
         self.at_final_goal = False # flag for reaching final destination
@@ -88,7 +89,7 @@ class LRPP():
         self.mode = None # what kind of policy to follow (policy, openloop, naive)
         self.retries_left = NRETRIES
         self.localization_err = False
-        self.costfn = 1 # costfn to use (dynamically cycle through them)
+        self.costfn = 3 # costfn to use (dynamically cycle through them)
 
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
@@ -104,6 +105,7 @@ class LRPP():
         rospy.loginfo("Starting task {} in {} mode".format(self.tcount, mode))
         self.mode = mode
         self.check_mode()
+        self.init_buffer = None # for edge_callback
 
         # create blank tgraph to fill in (make sure nothing is carried over!)
         self.curr_graph = tgraph.TGraph(self.base_graph, self.poly_dict)
@@ -120,7 +122,7 @@ class LRPP():
             self.M = self.costfnM[self.costfn]
             self.p = mf.update_p_est(self.M, self.tcount)
             self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g',
-                    robot_range=self.range, costfn=self.costfn)
+                    robot_range=self.range, costfn=1)
             rospy.loginfo(self.policy[0].print_policy())
 
         # set robot location
@@ -138,7 +140,7 @@ class LRPP():
             self.belief = range(len(self.M))
             # need to modify online_RPP to accept 's' as vertex
             O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
-                    'g', costfn=self.costfn)
+                    'g', robot_range=self.range, costfn=self.costfn)
             self.observation = O
 
             # for data collection purposes
@@ -302,7 +304,8 @@ class LRPP():
             f.write("\n==============================")
             f.write("\nTask {}".format(self.tcount))
             f.write("\nEntered openloop: {}".format(self.entered_openloop))
-            f.write("\nUsing costfn {}".format(self.costfn))
+            # f.write("\nUsing costfn {}".format(self.costfn))
+            f.write("\nUsing costfn 1")
 
             f.write(self.policy[0].print_policy())
             f.write("\n\nMap agreed with: {}, Map merge: {}"
@@ -354,11 +357,10 @@ class LRPP():
             next_mode = "online"
             f.write("\nNaive       {:9.3f}               {}"
                     .format(self.travelled_dist, util.secondsToStr(task_time.to_sec())))
-            # f.write("\n==============================")
 
 
         # controls what the last mode is
-        if self.mode == "naive":
+        if self.mode == "online":
             # clear all non-static obstacles
             for model in self.task_obstacles:
                 gz.delete_obstacle(model)
@@ -532,24 +534,25 @@ class LRPP():
             rospy.logwarn("Goal pose " + str(self.goal_cnt) +
                 " was aborted by the Action Server")
 
-            if self.mode == "naive" and self.retries_left > 0:
-                rospy.logerr("Clearing cost map and resending goal...Retries left: {}"
-                        .format(self.retries_left))
+            if self.retries_left > 0:
                 self.retries_left -= 1
+                if self.mode == "naive":
+                    rospy.logerr("Clearing cost map and resending goal...Retries left: {}"
+                            .format(self.retries_left))
 
-                # clear map and attempt to go to goal again
-                self.clear_costmap_client()
-                self.set_and_send_next_goal()
+                    # clear map and attempt to go to goal again
+                    self.clear_costmap_client()
+                    self.set_and_send_next_goal()
 
-            elif self.vnext != self.vprev and self.mode != "naive":
-                self.path_blocked = True
-                # set edge to be blocked
-                self.curr_graph.update_edge(self.vnext, self.vprev, self.base_map.G.BLOCKED)
+                elif self.vnext != self.vprev and self.mode != "naive":
+                    self.path_blocked = True
+                    # set edge to be blocked
+                    self.curr_graph.update_edge(self.vnext, self.vprev, self.base_map.G.BLOCKED)
 
-                if self.belief != []:
-                    self.update_belief(self.vnext, self.vprev, self.base_map.G.BLOCKED)
+                    if self.belief != []:
+                        self.update_belief(self.vnext, self.vprev, self.base_map.G.BLOCKED)
 
-                self.replan()
+                    self.replan()
             else:
                 rospy.logerr("Something went wrong, ending task execution...")
                 self.finish_task(err=True)
@@ -717,7 +720,7 @@ class LRPP():
             # calc next observation using belief
             rospy.loginfo("In online mode, calculating next observation...")
             O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
-                    'g', costfn=self.costfn)
+                    'g', robot_range=self.range, costfn=self.costfn)
             self.observation = O
             # for data collection purposes
             if self.observation != None: 
@@ -749,6 +752,16 @@ class LRPP():
         self.set_and_send_next_goal()
 
     def edge_callback(self, data):
+        # throw out first 3 entries before taking it seriously?
+        if self.init_buffer == None:
+            self.init_buffer = 3
+            return
+        elif self.init_buffer > 0:
+            self.init_buffer -= 1
+            return
+
+        rospy.logdebug("edge_cb now active!")
+
         # updates edges
         u = data.u
         if u.isdigit(): u = int(u)
@@ -773,14 +786,21 @@ class LRPP():
             if data.state == self.base_map.G.BLOCKED and not self.suspend:
                 # if robot is not already replanning and the blocked edge is not under observation, 
                 if not (self.path_blocked or self.edge_under_observation(u,v) or self.suspend):
+                    # if edge is the same one we are traversing, mark as blocked
+                    # (sometimes beginning of path may not contain [vprev, vnext, ...] but
+                    # start at [vnext, ...]
+                    if util.is_same_edge((self.vprev, self.vnext), (u,v)):
+                        self.path_blocked = True
+
                     for i, v_i in enumerate(self.path):
                         if i == 0: continue
-                        if (self.path[i-1] == u and v_i == v) or (self.path[i-1] == v and v_i == u):
-                            # remember to check both directions
+                        if util.is_same_edge((self.path[i-1], v_i), (v,u)):
                             self.path_blocked = True
-                            self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
-                            rospy.loginfo("Path is blocked!")
-                            self.replan()
+
+                    if self.path_blocked == True and not self.suspend:
+                        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                        rospy.loginfo("Path is blocked!")
+                        self.replan()
 
     def update_belief(self, u, v, state):
         new_belief = []
@@ -818,8 +838,8 @@ class LRPP():
             self.localization_err = True
             rospy.logerr("LOCALIZATION: Travel distance exceeded {:.2f}m in one time step."
                     .format(limit))
-            # self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
-            # self.finish_task(err=True)
+            self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+            self.finish_task(err=True)
 
     def update_curr_submap(self):
         if self.vnext != self.vprev:
