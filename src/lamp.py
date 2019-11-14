@@ -360,7 +360,7 @@ class LRPP():
 
 
         # controls what the last mode is
-        if self.mode == "online":
+        if self.mode == "naive":
             # clear all non-static obstacles
             for model in self.task_obstacles:
                 gz.delete_obstacle(model)
