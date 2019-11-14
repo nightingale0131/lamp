@@ -92,24 +92,26 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
 
     return policy
 
-def online_RPP(belief, vprev, robot_loc, M, p, features, goal, robot_range=None, costfn=1):
+def online_RPP(belief, vprev, robot_loc, M, p, goal, robot_range=None, costfn=1):
     '''
     robot_loc - (x,y) current robot location
     returns next observation (vi, vj) and path [v1, v2, ...]
     '''
     logger.info("Computing next observation...")
 
-    logger.info("Temporarily adding current location to all supermaps...")
+    logger.info("Temporarily adding current location {} to all"\
+            " supermaps...".format(robot_loc))
     for i in belief:
-        M[i].G.add_connected_vertex('r', robot_loc, vprev)
+        logger.info("adding 'r' to M[{}]".format(i))
+        M[i].G.add_connected_vertex('r', robot_loc, vprev, add_blocked=True)
         M[i].update_all_feature_states()
         M[i].update_cost(goal)
 
     # create custom features list and calc c_knownG with r
     logger.info("Computing knownG...")
-    features = M[0].features()
+    features = M[belief[0]].features()
     knownG = get_knownG(features, M, belief)
-    cost, paths = nx.single_source_dijkstra( knownG, v, weight='weight')
+    cost, paths = nx.single_source_dijkstra( knownG, 'r', weight='weight')
     c_knownG = Cost(cost, paths)
 
     # run next_decision with updated supermaps and custom feature list (including r)
@@ -123,9 +125,10 @@ def online_RPP(belief, vprev, robot_loc, M, p, features, goal, robot_range=None,
         M[i].G.remove_vertex('r')
 
     # if obsv (a,b) contains r, replace with vprev
-    (a,b) = O.E
-    if a == 'r': O.E = (vprev, b)
-    elif b == 'r': O.E = (a, vprev)
+    if O != None:
+        (a,b) = O.E
+        if a == 'r': O.E = (vprev, b)
+        elif b == 'r': O.E = (a, vprev)
     # remove r from beginning of path
     if path[0] == 'r': path.pop(0)
 
@@ -247,7 +250,7 @@ def next_decision(Y, v, M, p, features, goal, c_knownG, robot_range, costfn=1):
 
 def get_knownG(features, supermaps, belief):
     logger.info("Updating knownG...")
-    base_map = supermaps[0]
+    base_map = supermaps[belief[0]]
     # knownG=type(base_map.G.graph)(base_map.G) # use same type as Map.G
     knownG=nx.Graph()
     knownG.add_nodes_from(base_map.G.vertices())
@@ -277,7 +280,10 @@ def get_knownG(features, supermaps, belief):
         knownG.add_edge(a,b)
         if is_known and state != base_map.G.BLOCKED: 
             # assuming feature is an edge that looks like (a,b)
-            knownG[a][b]['weight'] = base_map.G.weight(a,b) 
+            try:
+                knownG[a][b]['weight'] = base_map.G.weight(a,b) 
+            except KeyError:
+                raise Exception("KeyError: ({},{})".format(a,b))
         else:
             knownG[a][b]['weight'] = float('inf')
 

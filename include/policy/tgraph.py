@@ -119,6 +119,7 @@ class TGraph(object):
         # find polygon (search all edges that are adjacent to originating portal)
         searched_polygons = [] # there's only two associated with any portal
         for neighbor in self.graph.neighbors_iter(last_vertex):
+            logger.info("Checking polygon of ({},{})".format(last_vertex, neighbor))
             poly = self.get_polygon(last_vertex, neighbor)
             if poly not in searched_polygons:
                 searched_polygons.append(poly)
@@ -130,14 +131,17 @@ class TGraph(object):
             if last_vertex != portal:
                 state = self.edge_state(last_vertex, portal)
             else: 
-                state = None
+                state = self.UNBLOCKED
 
-            if state == None or state != self.BLOCKED:
+            if state != self.BLOCKED:
                 weight = util.euclidean_distance(self.pos(label), self.pos(portal))
                 self.graph.add_edge(label, portal, weight=weight, state=state)
             elif add_blocked == True and state == self.BLOCKED:
                 self.graph.add_edge(label, portal, weight=float('inf'),
                         state=self.BLOCKED)
+
+        logger.info("Added new vertex {}".format(label))
+        logger.info(self)
 
     def remove_vertex(self, v):
         # v - vertex label
