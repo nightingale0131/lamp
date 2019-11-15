@@ -40,7 +40,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
             #   variations, must be greater than TOL
 TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
-NTASKS = 20 # number of tasks to execute in trial
+NTASKS = 50 # number of tasks to execute in trial
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -138,16 +138,17 @@ class LRPP():
             self.M = self.costfnM[0]
             self.p = mf.update_p_est(self.M, self.tcount)
             self.belief = range(len(self.M))
-            # need to modify online_RPP to accept 's' as vertex
+            rpp_start_time = rospy.Time.now()
             O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
                     'g', robot_range=self.range, costfn=self.costfn)
+            rpp_time = rospy.Time.now() - rpp_start_time
             self.observation = O
 
             # for data collection purposes
             if self.observation != None: 
-                self.observations.append((O.E, copy(path), copy(self.belief)))
+                self.observations.append((O.E, copy(path), copy(self.belief), rpp_time))
             else: 
-                self.observations.append((None, copy(path), copy(self.belief)))
+                self.observations.append((None, copy(path), copy(self.belief), rpp_time))
 
             self.set_new_path(path)
 
@@ -266,7 +267,7 @@ class LRPP():
             return
 
         if self.mode == "online":
-            next_mode = "online"
+            next_mode = "policy"
             info = self.save_map_and_filter()
 
             f.write("\n==============================")
@@ -275,8 +276,8 @@ class LRPP():
             f.write("\nUsing costfn {}".format(self.costfn))
 
             # write seq of paths that robot attempted
-            for e, path, belief in self.observations:
-                f.write("\n  {:<10}{:<20}{}".format(e, belief, path))
+            for e, path, belief, time in self.observations:
+                f.write("\n  {:<10}{:5.1f}ms  {:<20}{}".format(e, time.to_sec()*1000, belief, path))
 
             f.write("\n\nMap agreed with: {}, Map merge: {}"
                     .format(info['agree'], info['merged']))
@@ -360,7 +361,7 @@ class LRPP():
 
 
         # controls what the last mode is
-        if self.mode == "online":
+        if self.mode == "naive":
             # clear all non-static obstacles
             for model in self.task_obstacles:
                 gz.delete_obstacle(model)
@@ -721,14 +722,17 @@ class LRPP():
         if self.belief != []:
             # calc next observation using belief
             rospy.loginfo("In online mode, calculating next observation...")
+            rpp_start_time = rospy.Time.now()
             O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
                     'g', robot_range=self.range, costfn=self.costfn, Gcurr=self.curr_graph)
+            rpp_time = rospy.Time.now() - rpp_start_time
             self.observation = O
+
             # for data collection purposes
             if self.observation != None: 
-                self.observations.append((O.E, copy(path), copy(self.belief)))
+                self.observations.append((O.E, copy(path), copy(self.belief), rpp_time))
             else: 
-                self.observations.append((None, copy(path), copy(self.belief)))
+                self.observations.append((None, copy(path), copy(self.belief), rpp_time))
 
             if path == None:
                 rospy.logerr("Cannot go to goal! Ending task.")
