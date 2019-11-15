@@ -92,27 +92,45 @@ def solve_RPP(M, p, features, start, goal, robot_range=None, costfn=1):
 
     return policy
 
-def online_RPP(belief, vprev, robot_loc, M, p, goal, robot_range=None, costfn=1):
+def online_RPP(belief, vprev, robot_loc, M, p, goal, robot_range=None, costfn=1,
+        Gcurr=None):
     '''
     robot_loc - (x,y) current robot location
+    Gcurr - current tgraph
     returns next observation (vi, vj) and path [v1, v2, ...]
     '''
     logger.info("Computing next observation...")
 
     logger.info("Temporarily adding current location {} to all"\
-            " supermaps...".format(robot_loc))
+            " supermaps in belief and M0...".format(robot_loc))
     for i in belief:
         logger.info("adding 'r' to M[{}]".format(i))
         M[i].G.add_connected_vertex('r', robot_loc, vprev, add_blocked=True)
         M[i].update_all_feature_states()
         M[i].update_cost(goal)
 
+    # if 0 isn't modified that causes a bunch of issues since I use it to determine
+    # features and weights in next_decision
+    if 0 not in belief: 
+        M[0].G.add_connected_vertex('r', robot_loc, vprev, add_blocked=True)
+        M[0].update_all_feature_states()
+        M[0].update_cost(goal)
+
     # create custom features list and calc c_knownG with r
     logger.info("Computing knownG...")
-    features = M[belief[0]].features()
+    features = M[0].features()
     knownG = get_knownG(features, M, belief)
+    # update knownG with current graph info
+    if Gcurr != None:
+        for u,v,data in Gcurr.edges(data=True):
+            state = Gcurr.edge_state(u,v)
+            weight = Gcurr.weight(u,v,True)
+            if state != Gcurr.UNKNOWN:
+                knownG.add_edge(u,v,weight=weight)
+
     cost, paths = nx.single_source_dijkstra( knownG, 'r', weight='weight')
     c_knownG = Cost(cost, paths)
+    logger.info("knownG:\n{}".format(knownG.edges(data=True)))
 
     # run next_decision with updated supermaps and custom feature list (including r)
     (nextO, path) = next_decision(belief, 'r', M, p, features, goal, c_knownG, robot_range, costfn)
@@ -123,6 +141,8 @@ def online_RPP(belief, vprev, robot_loc, M, p, goal, robot_range=None, costfn=1)
     logger.info("Removing temp vertex...")
     for i in belief:
         M[i].G.remove_vertex('r')
+    if 0 not in belief:
+        M[0].G.remove_vertex('r')
 
     # if obsv (a,b) contains r, replace with vprev
     if O != None:
