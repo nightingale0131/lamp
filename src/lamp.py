@@ -819,9 +819,24 @@ class LRPP():
         if state == self.base_map.G.UNKNOWN:
             return False
         else:
+            '''
+            # update belief by comparing new edge info with supermaps in belief
             for i in self.belief:
                 i_state = self.M[i].G.edge_state(u,v)
                 if  i_state == state or i_state == self.base_map.G.UNKNOWN:
+                    new_belief.append(i)
+            '''
+
+            # update belief by comparing curr_graph with all supermaps
+            for i in range(len(self.M)):
+                for u,v,i_state in self.M[i].G.edges(data='state'):
+                    curr_state = self.curr_graph.edge_state(u,v)
+                    if ((i_state == self.base_map.G.BLOCKED and curr_state ==
+                            self.base_map.G.UNBLOCKED) or
+                            (i_state == self.base_map.G.UNBLOCKED and curr_state ==
+                                self.base_map.G.BLOCKED)):
+                        break
+                else:
                     new_belief.append(i)
 
             if self.belief != new_belief:
