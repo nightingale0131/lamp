@@ -40,7 +40,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
             #   variations, must be greater than TOL
 TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
-NTASKS = 50 # number of tasks to execute in trial
+NTASKS = 20 # number of tasks to execute in trial
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -266,7 +266,7 @@ class LRPP():
             return
 
         if self.mode == "online":
-            next_mode = "policy"
+            next_mode = "online"
             info = self.save_map_and_filter()
 
             f.write("\n==============================")
@@ -336,7 +336,7 @@ class LRPP():
 
             f.write("\n\n   Mode    Distance travelled (m)  Task Completion Time (h:mm:ss)")
             f.write("\nPolicy {}    {:9.3f}               {}"
-                    .format(self.costfn, self.travelled_dist, util.secondsToStr(task_time.to_sec())))
+                    .format(1, self.travelled_dist, util.secondsToStr(task_time.to_sec())))
 
             '''
             if self.costfn == 3:
@@ -360,7 +360,7 @@ class LRPP():
 
 
         # controls what the last mode is
-        if self.mode == "naive":
+        if self.mode == "online":
             # clear all non-static obstacles
             for model in self.task_obstacles:
                 gz.delete_obstacle(model)
@@ -534,25 +534,24 @@ class LRPP():
             rospy.logwarn("Goal pose " + str(self.goal_cnt) +
                 " was aborted by the Action Server")
 
-            if self.retries_left > 0:
+            if self.retries_left > 0 and self.mode == "naive":
                 self.retries_left -= 1
-                if self.mode == "naive":
-                    rospy.logerr("Clearing cost map and resending goal...Retries left: {}"
-                            .format(self.retries_left))
+                rospy.logerr("Clearing cost map and resending goal...Retries left: {}"
+                        .format(self.retries_left))
 
-                    # clear map and attempt to go to goal again
-                    self.clear_costmap_client()
-                    self.set_and_send_next_goal()
+                # clear map and attempt to go to goal again
+                self.clear_costmap_client()
+                self.set_and_send_next_goal()
+            elif self.retries_left > 0 and self.vnext != self.vprev and self.mode != "naive":
+                self.retries_left -= 1
+                self.path_blocked = True
+                # set edge to be blocked
+                self.curr_graph.update_edge(self.vnext, self.vprev, self.base_map.G.BLOCKED)
 
-                elif self.vnext != self.vprev and self.mode != "naive":
-                    self.path_blocked = True
-                    # set edge to be blocked
-                    self.curr_graph.update_edge(self.vnext, self.vprev, self.base_map.G.BLOCKED)
+                if self.belief != []:
+                    self.update_belief(self.vnext, self.vprev, self.base_map.G.BLOCKED)
 
-                    if self.belief != []:
-                        self.update_belief(self.vnext, self.vprev, self.base_map.G.BLOCKED)
-
-                    self.replan()
+                self.replan()
             else:
                 rospy.logerr("Something went wrong, ending task execution...")
                 self.finish_task(err=True)
@@ -690,14 +689,16 @@ class LRPP():
 
                 curr_edge_state = self.curr_graph.check_edge_state(vcurr, vnext, rospath,
                                                                    PADDING, False)
-                rospy.loginfo("result of check_edge_state: {}".format(curr_edge_state))
+                rospy.loginfo("  result of check_edge_state: {}".format(curr_edge_state))
 
                 if self.belief != []:
                     result = self.update_belief(vcurr, vnext, curr_edge_state) 
                     if result == True:
                         self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
                         self.replan()
-                elif (self.mode == "policy" or self.entered_openloop == True):
+                        return
+
+                if (self.mode == "policy" or self.entered_openloop == True):
                     if (curr_edge_state == self.base_map.G.BLOCKED and
                         not self.edge_under_observation(vnext, vcurr) and
                         not self.suspend):
@@ -705,9 +706,10 @@ class LRPP():
                         self.path_blocked = True
 
                     if self.path_blocked:
-                        rospy.loginfo("Path is blocked!")
+                        rospy.loginfo("plan_cb: Path is blocked!")
                         self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
                         self.replan()
+                        return
 
         self.posearray_publisher.publish(self.conv_to_PoseArray(self.pose_seq))
 
@@ -720,13 +722,19 @@ class LRPP():
             # calc next observation using belief
             rospy.loginfo("In online mode, calculating next observation...")
             O, path = rpp.online_RPP(self.belief, self.vprev, self.pos, self.M, self.p,
-                    'g', robot_range=self.range, costfn=self.costfn)
+                    'g', robot_range=self.range, costfn=self.costfn, Gcurr=self.curr_graph)
             self.observation = O
             # for data collection purposes
             if self.observation != None: 
                 self.observations.append((O.E, copy(path), copy(self.belief)))
             else: 
                 self.observations.append((None, copy(path), copy(self.belief)))
+
+            if path == None:
+                rospy.logerr("Cannot go to goal! Ending task.")
+                rospy.loginfo(self.curr_graph.edges(data='state'))
+                self.finish_task(err=True)
+                return 
 
         else:
             rospy.loginfo("In openloop, replanning on graph...")
@@ -741,10 +749,10 @@ class LRPP():
             self.curr_graph.remove_vertex('r')
 
             if dist['g'] == float('inf'):
-                print(self.curr_graph.edges(data='state'))
-                rospy.loginfo("Cannot go to goal! Ending task.")
+                rospy.logerr("Cannot go to goal! Ending task.")
+                rospy.loginfo(self.curr_graph.edges(data='state'))
                 self.finish_task(err=True)
-                return # path_blocked = True from now until shutdown
+                return
 
             path = paths['g'][1:]
 
@@ -769,38 +777,38 @@ class LRPP():
         v = data.v
         if v.isdigit(): v = int(v)
 
+        if self.mode == "policy" or self.mode == "online":
+            self.curr_graph.update_edge(u, v, data.state, data.weight)
+        elif self.mode == "openloop":
+            self.curr_graph.update_edge(u, v, data.state)
+
         if self.belief != [] and not self.suspend:
             rospy.loginfo("edge_cb: checking belief")
-            self.curr_graph.update_edge(u, v, data.state, data.weight)
             result = self.update_belief(u, v, data.state) 
             if result == True:
                 self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
                 self.replan()
-        else:
-            rospy.loginfo("edge_cb: not checking belief")
-            if self.mode == "policy" or self.mode == "online":
-                self.curr_graph.update_edge(u, v, data.state, data.weight)
-            elif self.mode == "openloop":
-                self.curr_graph.update_edge(u, v, data.state)
+                return
 
-            if data.state == self.base_map.G.BLOCKED and not self.suspend:
-                # if robot is not already replanning and the blocked edge is not under observation, 
-                if not (self.path_blocked or self.edge_under_observation(u,v) or self.suspend):
-                    # if edge is the same one we are traversing, mark as blocked
-                    # (sometimes beginning of path may not contain [vprev, vnext, ...] but
-                    # start at [vnext, ...]
-                    if util.is_same_edge((self.vprev, self.vnext), (u,v)):
+        if data.state == self.base_map.G.BLOCKED and not self.suspend:
+            # if robot is not already replanning and the blocked edge is not under observation, 
+            if not (self.path_blocked or self.edge_under_observation(u,v) or self.suspend):
+                # if edge is the same one we are traversing, mark as blocked
+                # (sometimes beginning of path may not contain [vprev, vnext, ...] but
+                # start at [vnext, ...]
+                if util.is_same_edge((self.vprev, self.vnext), (u,v)):
+                    self.path_blocked = True
+
+                for i, v_i in enumerate(self.path):
+                    if i == 0: continue
+                    if util.is_same_edge((self.path[i-1], v_i), (v,u)):
                         self.path_blocked = True
 
-                    for i, v_i in enumerate(self.path):
-                        if i == 0: continue
-                        if util.is_same_edge((self.path[i-1], v_i), (v,u)):
-                            self.path_blocked = True
-
-                    if self.path_blocked == True and not self.suspend:
-                        self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
-                        rospy.loginfo("Path is blocked!")
-                        self.replan()
+                if self.path_blocked == True and not self.suspend:
+                    self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
+                    rospy.loginfo("edge_cb: Path is blocked!")
+                    self.replan()
+                    return
 
     def update_belief(self, u, v, state):
         new_belief = []
