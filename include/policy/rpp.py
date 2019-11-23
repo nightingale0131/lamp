@@ -150,7 +150,8 @@ def online_RPP(belief, vprev, robot_loc, M, p, goal, robot_range=None, costfn=1,
         if a == 'r': O.E = (vprev, b)
         elif b == 'r': O.E = (a, vprev)
     # remove r from beginning of path
-    if path[0] == 'r': path.pop(0)
+    if path != None:
+        if path[0] == 'r': path.pop(0)
 
     # return obsv and path
     return O, path
@@ -250,7 +251,7 @@ def next_decision(Y, v, M, p, features, goal, c_knownG, robot_range, costfn=1):
 
                 # in the event of multiple observations score = 0, select (O, v) w/ 
                 #   least expected cost to goal if we go to v
-                if score == 0 and minScore == 0:
+                if isclose(score, 0) and isclose(minScore, 0):
                     if D[u] < minO[2]:
                         minO = (obsv, u, D[u], uu, ub)
 
