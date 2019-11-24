@@ -16,7 +16,7 @@ from policy.classes import Map
 from policy import utility as util
 from policy import rpp, tgraph
 from policy import mapfilters as mf
-from policy.generate_obstacles import spawn_obstacles, delete_obstacles
+from policy.generate_obstacles import spawn_obstacles, add_number
 
 from nav_msgs.msg import OccupancyGrid, Path
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -40,7 +40,7 @@ PADDING = 1.2 # how much to inflate convex region by (to allow for small localiz
             #   variations, must be greater than TOL
 TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_tolerance
 NRETRIES = 3 # number of retries on naive mode before giving up execution
-NTASKS = 50 # number of tasks to execute in trial
+NTASKS = 100 # number of tasks to execute in trial
 
 class LRPP():
     def __init__(self, base_graph, polygon_dict, T=1):
@@ -117,12 +117,13 @@ class LRPP():
         self.observations = []  # for online
 
         if mode == "policy":
+            p_costfn = 1 #self.costfn
             rospy.loginfo("Calculating policy for task {} using costfn {}..."
-                    .format(self.tcount, self.costfn))
-            self.M = self.costfnM[self.costfn]
+                    .format(self.tcount, p_costfn))
+            self.M = self.costfnM[p_costfn]
             self.p = mf.update_p_est(self.M, self.tcount)
             self.policy = rpp.solve_RPP(self.M, self.p, self.features, 's', 'g',
-                    robot_range=self.range, costfn=1)
+                    robot_range=self.range, costfn=p_costfn)
             rospy.loginfo(self.policy[0].print_policy())
 
         # set robot location
@@ -214,6 +215,9 @@ class LRPP():
             # Set up any obstacles if starting a new task
             self.task_obstacles = spawn_obstacles()
 
+            # add number
+            numbers = add_number(self.tcount)
+
         rospy.loginfo("Finished environment setup.\n Resuming gazebo...")
 
         # reset costmap using service /move_base/clear_costmaps
@@ -279,8 +283,9 @@ class LRPP():
             for e, path, belief, time in self.observations:
                 f.write("\n  {:<10}{:5.1f}ms  {:<20}{}".format(e, time.to_sec()*1000, belief, path))
 
-            f.write("\n\nMap agreed with: {}, Map merge: {}"
+            f.write("\nMap agreed with: {}, Map merge: {}"
                     .format(info['agree'], info['merged']))
+            f.write("\n\nNum of super maps: {}".format(len(self.M)))
 
             # print states
             f.write("\nMap states")
@@ -309,8 +314,9 @@ class LRPP():
             f.write("\nUsing costfn 1")
 
             f.write(self.policy[0].print_policy())
-            f.write("\n\nMap agreed with: {}, Map merge: {}"
+            f.write("\nMap agreed with: {}, Map merge: {}"
                     .format(info['agree'], info['merged']))
+            f.write("\n\nNum of super maps: {}".format(len(self.M)))
 
             # print states
             f.write("\nMap states")
@@ -782,6 +788,9 @@ class LRPP():
         if v.isdigit(): v = int(v)
 
         if self.mode == "policy" or self.mode == "online":
+            # old_edge_state = self.curr_graph.edge_state(u,v)
+            # if (old_edge_state == self.base_map.G.UNKNOWN or
+                # old_edge_state == data.state):
             self.curr_graph.update_edge(u, v, data.state, data.weight)
         elif self.mode == "openloop":
             self.curr_graph.update_edge(u, v, data.state)
@@ -794,7 +803,11 @@ class LRPP():
                 self.replan()
                 return
 
-        if data.state == self.base_map.G.BLOCKED and not self.suspend:
+        new_edge_state = self.curr_graph.edge_state(u,v) # might've been updated
+
+        if (new_edge_state == self.base_map.G.BLOCKED and 
+                data.state == self.base_map.G.BLOCKED and 
+                not self.suspend):
             # if robot is not already replanning and the blocked edge is not under observation, 
             if not (self.path_blocked or self.edge_under_observation(u,v) or self.suspend):
                 # if edge is the same one we are traversing, mark as blocked
@@ -814,7 +827,7 @@ class LRPP():
                     self.replan()
                     return
 
-    def update_belief(self, u, v, state):
+    def update_belief(self, o1, o2, state):
         new_belief = []
         if state == self.base_map.G.UNKNOWN:
             return False
@@ -841,7 +854,7 @@ class LRPP():
 
             if self.belief != new_belief:
                 self.belief = new_belief
-                rospy.loginfo("({},{}):{} caused new belief: {}".format(u,v,state,self.belief))
+                rospy.loginfo("({},{}):{} caused new belief: {}".format(o1,o2,state,self.belief))
                 return True
             else:
                 return False

@@ -16,6 +16,8 @@ vii_prob = 0.2
 viii_prob = 0.2
 '''
 
+'''
+D config
 bgi_prob = 0.5
 a_prob = 0.1
 ce_prob = 0.5
@@ -26,8 +28,34 @@ iii_prob = 0.9
 vi_prob = 0
 vii_prob = 0
 viii_prob = 0
+'''
+'''
+E config
+    bgi_prob = 0.5
+    a_prob = 0
+    ce_prob = 0.5
+    dfh_prob = 0.4
+    i_prob = 0.3
+    ii_prob = 0 
+    iii_prob = 0.8
+    vi_prob = 0
+    vii_prob = 0
+    viii_prob = 0
+'''
 
 def spawn_obstacles():
+    # obstacle probabilities
+    bgi_prob = 0.5
+    a_prob = 0.1
+    ce_prob = 0.5
+    dfh_prob = 0.4
+    i_prob = 0
+    ii_prob = 0 
+    iii_prob = 0.9
+    vi_prob = 0
+    vii_prob = 0
+    viii_prob = 0
+
     random.seed()
     cmd = ''
     del_cmd = ''
@@ -46,6 +74,7 @@ def spawn_obstacles():
 
     if random.random() < ce_prob:
         barriers += ['C', 'E']
+        # ii_prob = 1 # correlate w/ dumpsters b/w (2,7)
 
     if random.random() < dfh_prob:
         barriers += ['D', 'F', 'H']
@@ -256,3 +285,26 @@ def barrier(letter, suff):
     model_name = "barrier_{}_{}".format(letter, suff)
 
     return cmd, del_cmd, model_name
+
+def add_number(number):
+    # add task number to gazebo
+    random.seed()
+    str_num = str(number)
+    digits = range(len(str_num))
+    digits.reverse()
+    model_names = []
+    cmd = ''
+
+    for i in digits:
+        suff = random.randint(0,100) # random suffix to all model names
+        n = str_num[i]
+        name = "n_{}_{}".format(i, suff)
+        x = -1.5 - 1.75*(len(str_num) - 1 - i)
+        cmd += "rosrun gazebo_ros spawn_model\
+                 -file /home/f4tsang/.gazebo/models/number{}/model.sdf\
+                 -gazebo -model {} -x {} -z 0 -Y -1.571\n".format(n, name, x)
+
+        model_names.append(name)
+
+    os.system(cmd)
+    return model_names
