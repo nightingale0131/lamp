@@ -97,11 +97,13 @@ def costfn3(known_cost_to_v, v, u, goal, outcomes, supermaps, p_Xy, robot_range)
             blocked_p = outcome.p 
             blocked_exp_cost, ub = min_exp_cost(midpt, v, goal, vlist,
                     outcome, supermaps, p_Xy)
+            blocked_exp_cost += util.euclidean_distance((midpt.x, midpt.y),tg.pos(v))
         elif outcome.state == tg.UNBLOCKED:
             unblocked_p = outcome.p
             # calc expected cost from end_u
             unblocked_exp_cost, uu = min_exp_cost(o_pt, v, goal, vlist,
                     outcome, supermaps, p_Xy)
+            unblocked_exp_cost += util.euclidean_distance((o_pt.x, o_pt.y),tg.pos(v))
 
     exp_cost = (known_cost_to_v + blocked_p*blocked_exp_cost +
             unblocked_p*unblocked_exp_cost)
