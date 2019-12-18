@@ -1,7 +1,0 @@
-<launch>
-
-  <!-- Spawn Jackal in rectangle.world -->
-  <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model"
-	      args="-urdf -model jackal -param robot_description -x 7 -y 8 -z 1.0 -Y 3.14" />
-
-</launch>
