@@ -1,0 +1,8 @@
+# log files (explicitly save them)
+*.log
+
+# Python build files
+*.pyc
+
+# Temp swap files
+*.swp
