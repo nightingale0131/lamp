@@ -24,7 +24,7 @@ from std_srvs.srv import *
 
 PADDING = 0.3 # must be greater than xy_goal_tolerance
 LETHAL = 99 # value in costmap to be considered non-passable
-PKGDIR = rospkg.RosPack().get_path('policy')
+PKGDIR = rospkg.RosPack().get_path('lamp')
 # MAP = 'tristan_maze'
 MAP = 'test_large'
 

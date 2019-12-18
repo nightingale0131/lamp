@@ -31,7 +31,7 @@ from std_msgs.msg import Empty as rosEmpty
 from std_srvs.srv import *
 from gazebo_msgs.srv import *
 
-PKGDIR = rospkg.RosPack().get_path('policy')
+PKGDIR = rospkg.RosPack().get_path('lamp')
 # MAP = 'tristan_maze'
 MAP = 'test_large'
 

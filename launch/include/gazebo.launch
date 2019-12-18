@@ -2,7 +2,7 @@
   <arg name="use_sim_time" default="true" />
   <arg name="gui" default="true" />
   <arg name="headless" default="false" />
-  <arg name="world_name" default="$(find policy)/worlds/tristan_maze.world" />
+  <arg name="world_name" default="$(find lamp)/worlds/tristan_maze.world" />
 
   <!-- Launch Gazebo with the specified world -->
   <include file="$(find gazebo_ros)/launch/empty_world.launch">

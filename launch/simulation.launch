@@ -1,9 +1,9 @@
 <launch>
 
   <!--- Run Move Base, make sure env.launch is run first!!! -->
-  <include file="$(find policy)/launch/include/move_base.launch" />
+  <include file="$(find lamp)/launch/include/move_base.launch" />
 
   <!--- Run LAMP -->
-  <node name="lamp" pkg="policy" type="lamp.py" required="true" output="screen" />
+  <node name="lamp" pkg="lamp" type="lamp.py" required="true" output="screen" />
 
 </launch>
