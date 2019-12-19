@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from policy.utility import euclidean_distance
+from utility import euclidean_distance
 import random
 import os
 import math

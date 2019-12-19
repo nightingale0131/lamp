@@ -8,8 +8,10 @@ import imutils
 import numpy as np
 import visilibity as vis
 import numpy.linalg as LA
-import policy.utility as util
 from shapely.geometry import Polygon
+
+# local modules
+import utility as util
 
 def ccw(Ax,Ay,Bx,By,Cx,Cy):
     return (Cy-Ay)*(Bx-Ax) > (By-Ay)*(Cx-Ax)
