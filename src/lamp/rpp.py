@@ -19,9 +19,7 @@ from collections import deque # queue class
 from copy import deepcopy
 
 import tgraph
-# from gridgraph import GridGraph 
 from classes import Cost, Node, Outcome, Observation
-# from dijkstra import dijkstra
 from utility import isclose, euclidean_distance
 import costfns as cf
 
