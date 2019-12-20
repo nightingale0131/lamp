@@ -1,2 +1,2 @@
-from lamp_node import Lamp
+from planner import Lamp
 from dirinf import EdgeObserver
