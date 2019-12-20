@@ -15,5 +15,4 @@ Needed python libraries:
 * open-cv
 
 TODO:
-- remove unnecessary .py files
-- update dependencies in CMakeLists
+- integrate config files for running on real Jackal with Velodyne Puck
