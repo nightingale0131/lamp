@@ -42,10 +42,11 @@ TOL = 0.75 # tolerance from waypoint before moving to next waypoint > xy_goal_to
 NRETRIES = 3 # number of retries on naive mode before giving up execution
 
 class Lamp():
-    def __init__(self, base_graph, polygon_dict, T=1):
+    def __init__(self, base_graph, polygon_dict, T=1, sim=True):
         # seq - list of vertices [v1, v2, ...]
         # base_map is map type
         rospy.init_node('lamp')
+        self.sim = sim
         gz.pause()
 
         self.base_graph = base_graph
@@ -194,38 +195,48 @@ class Lamp():
         # Cancel all goals to move_base
         self.client.cancel_goals_at_and_before_time(rospy.get_rostime())
 
-        gz.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
+        if self.sim == True:
+            gz.set_robot_pose(*(self.gaz_pose)) # Move jackal back to beginning in gazebo
 
-        # if mode == "policy" and self.costfn == 1 and redo == False:
-        if mode == "online" and redo == False:
-            # Ensure all non-permanent obstacles have been removed
-            model_names = gz.get_model_names()
-            do_not_delete = ['jackal', 'Wall', 'ground']
-            delete_these = []
-            for model in model_names:
-                for forbidden in do_not_delete:
-                    if forbidden in model: break
-                else:
-                    delete_these.append(model)
+            # if mode == "policy" and self.costfn == 1 and redo == False:
+            if mode == "online" and redo == False:
+                # Ensure all non-permanent obstacles have been removed
+                model_names = gz.get_model_names()
+                do_not_delete = ['jackal', 'Wall', 'ground']
+                delete_these = []
+                for model in model_names:
+                    for forbidden in do_not_delete:
+                        if forbidden in model: break
+                    else:
+                        delete_these.append(model)
 
-            for model in delete_these: 
-                gz.delete_obstacle(model)
+                for model in delete_these: 
+                    gz.delete_obstacle(model)
 
-            # Set up any obstacles if starting a new task
-            self.task_obstacles = spawn_obstacles()
+                # Set up any obstacles if starting a new task
+                self.task_obstacles = spawn_obstacles()
 
-            # add number
-            numbers = add_number(self.tcount)
+                # add number
+                numbers = add_number(self.tcount)
 
-        rospy.loginfo("Finished environment setup.\n Resuming gazebo...")
+            rospy.loginfo("Finished environment setup.\n Resuming gazebo...")
 
-        # reset costmap using service /move_base/clear_costmaps
-        gz.resume()
-        rospy.sleep(0.5) # give time for transforms to adjust 
+            # reset costmap using service /move_base/clear_costmaps
+            gz.resume()
+            rospy.sleep(0.5) # give time for transforms to adjust 
+        else:
+            # wait for input before sending goals to move_base
+            raw_input("Move jackal back to location and modify obstacles as needed.\n"\
+                      "When ready, press any key to initialize localization")
 
         rospy.loginfo("Re-initialize AMCL pose...")
         self.set_amcl_pose() # Set initial guess for amcl back to start
         rospy.sleep(2) # give time for amcl to initialize 
+
+        if self.sim == False:
+            raw_input("Check localization.\n"\
+                      "When ready, press any key to begin execution of task {}."
+                      .format(self.tcount))
 
         rospy.loginfo("Clearing costmap...")
         self.clear_costmap_client()
@@ -367,9 +378,10 @@ class Lamp():
 
         # controls what the last mode is
         if self.mode == "naive":
-            # clear all non-static obstacles
-            for model in self.task_obstacles:
-                gz.delete_obstacle(model)
+            if self.sim == True:
+                # clear all non-static obstacles
+                for model in self.task_obstacles:
+                    gz.delete_obstacle(model)
 
             # increment task counter
             self.tcount +=1
