@@ -1,0 +1,24 @@
+<launch>
+
+	<arg name="world_name" default="tristan_maze" />
+
+	<!-- Run RViz -->
+  <param name="use_gui" value="true"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find policy)/launch/include/experiment.rviz" />
+
+  <!-- Run the map server -->
+	<arg name="map_file" default="$(find policy)/maps/$(arg world_name)/base.yaml"/>
+	<node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+  <!--- Run AMCL -->
+	<include file="$(find policy)/launch/include/amcl.launch"> 
+		<arg name="scan_topic" value="scan"/>
+	</include>
+
+  <!--- Run Move Base, make sure env.launch is run first!!! -->
+  <include file="$(find policy)/launch/include/move_base_jack1.launch" />
+
+  <!--- Run LAMP -->
+  <node name="lamp" pkg="policy" type="lamp.py" required="true" output="screen" />
+
+</launch>
