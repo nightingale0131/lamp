@@ -22,6 +22,6 @@ if __name__ == '__main__':
 
     # run LRPP
     try:
-        Lamp(graph, poly_dict, T=NTASKS)
+        Lamp(graph, poly_dict, T=NTASKS, sim=True)
     except rospy.ROSInterruptException:
         rospy.loginfo("Finished simulation.")
