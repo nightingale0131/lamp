@@ -8,6 +8,7 @@ from lamp import Lamp, tgraph
 
 PKGDIR = rospkg.RosPack().get_path('lamp')
 # MAP = 'tristan_maze'
+# MAP = 'e7'
 MAP = 'test_large'
 
 NTASKS = 5 # number of tasks to execute in trial

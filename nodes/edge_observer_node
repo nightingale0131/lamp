@@ -10,6 +10,7 @@ from lamp import EdgeObserver, tgraph
 
 PKGDIR = rospkg.RosPack().get_path('lamp')
 # MAP = 'tristan_maze'
+# MAP = 'e7'
 MAP = 'test_large'
 
 if __name__ == '__main__':
