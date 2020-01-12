@@ -47,7 +47,7 @@ class Lamp():
         # base_map is map type
         rospy.init_node('lamp')
         self.sim = sim
-        gz.pause()
+        if self.sim == True: gz.pause()
 
         self.base_graph = base_graph
         self.poly_dict = polygon_dict
@@ -262,7 +262,7 @@ class Lamp():
         self.set_and_send_next_goal()
 
     def finish_task(self, err=False):
-        gz.pause() # pause simulation
+        if self.sim == True: gz.pause()
         task_time = rospy.Time.now() - self.task_start_time
 
         # open results file
